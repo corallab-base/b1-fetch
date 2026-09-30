@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(rospack list *)",
+      "Bash(rs-enumerate-devices -s)",
+      "Read(//etc/**)",
+      "Read(//home/unitree/**)",
+      "Read(//home/unitree/catkin_ws/**)"
+    ]
+  }
+}

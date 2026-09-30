@@ -1,0 +1,21 @@
+<?xml version="1.0"?>
+<package format="2">
+  <name>fetch_safety</name>
+  <version>0.1.0</version>
+  <description>Velocity safety filter for the B1: zeroes or slows commanded motion toward obstacles seen by depth cameras.</description>
+  <maintainer email="mahit.py@gmail.com">unitree</maintainer>
+  <license>Proprietary</license>
+
+  <buildtool_depend>catkin</buildtool_depend>
+
+  <depend>roscpp</depend>
+  <depend>geometry_msgs</depend>
+  <depend>sensor_msgs</depend>
+  <depend>std_msgs</depend>
+  <depend>visualization_msgs</depend>
+  <depend>tf2_ros</depend>
+  <depend>tf2_eigen</depend>
+
+  <exec_depend>realsense2_camera</exec_depend>
+  <exec_depend>rospy</exec_depend>
+</package>

@@ -1,0 +1,17 @@
+# Overrides `sources` in safety_filter.yaml when running without the downward
+# front camera: forward is watched by the level front camera only, which can't
+# see below ~0.3 m within 1 m of the robot (low obstacles close in front).
+# Loaded by: roslaunch fetch_safety safety_filter.launch front_down:=false
+sources:
+  - name: left_cam
+    topic: /cam_left/depth/color/points
+    directions: [left]
+  - name: right_cam
+    topic: /cam_right/depth/color/points
+    directions: [right]
+  - name: front_cam
+    topic: /cam_front/depth/color/points
+    directions: [forward]
+  - name: rear_cam
+    topic: /cam_rear/depth/color/points
+    directions: [backward]

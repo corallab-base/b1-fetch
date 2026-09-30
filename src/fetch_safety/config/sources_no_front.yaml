@@ -1,0 +1,13 @@
+# Overrides `sources` in safety_filter.yaml when running without the front
+# camera: left/right/rear stay monitored, FORWARD IS UNMONITORED (not blocked).
+# Loaded by: roslaunch fetch_safety safety_filter.launch front_camera:=false
+sources:
+  - name: left_cam
+    topic: /cam_left/depth/color/points
+    directions: [left]
+  - name: right_cam
+    topic: /cam_right/depth/color/points
+    directions: [right]
+  - name: rear_cam
+    topic: /cam_rear/depth/color/points
+    directions: [backward]

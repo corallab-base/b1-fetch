@@ -1,0 +1,43 @@
+<launch>
+  <!-- One D430i depth camera publishing /<camera>/depth/color/points.
+       Same settings for every safety camera. required: if a camera node
+       dies, the whole bringup shuts down (and the bridge stops getting
+       commands) instead of running with a blind side. -->
+  <arg name="camera"/>
+  <arg name="serial_no"/>
+  <!-- 424x240 needs USB 3; the rear camera is on USB 2.1 and uses 480x270 -->
+  <arg name="width"   default="424"/>
+  <arg name="height"  default="240"/>
+  <!-- temporal smooths noise but delays newly appearing obstacles.
+       decimation (2x2, always applied first by realsense-ros) cuts each cloud
+       4x: 424x240 -> 212x120, max ~49 Mbit/s instead of ~195 (rear ~62). -->
+  <arg name="filters" default="decimation,pointcloud,spatial"/>
+  <!-- Shared nodelet manager (absolute name, started by the caller). Two
+       cameras on one board must share ONE driver process: with librealsense's
+       RSUSB backend, separate processes can't enumerate each other's devices
+       and both loop on "device ... is NOT found". Empty = own manager. -->
+  <arg name="manager" default=""/>
+
+  <group ns="$(arg camera)">
+    <include file="$(find realsense2_camera)/launch/includes/nodelet.launch.xml">
+      <arg name="tf_prefix"                 value="$(arg camera)"/>
+      <arg name="serial_no"                 value="$(arg serial_no)"/>
+      <arg name="filters"                   value="$(arg filters)"/>
+      <arg name="pointcloud_texture_stream" value="RS2_STREAM_ANY"/>
+      <arg name="enable_color"              value="false"/>
+      <arg name="clip_distance"             value="3.0"/>
+      <!-- Re-send the camera's internal frames on /tf instead of once on
+           latched /tf_static: two cameras in one nodelet manager share one
+           latched /tf_static message, so late subscribers (Foxglove) only
+           got the last camera's frames. -->
+      <arg name="tf_publish_rate"           value="10.0"/>
+      <arg name="depth_width"               value="$(arg width)"/>
+      <arg name="depth_height"              value="$(arg height)"/>
+      <arg name="depth_fps"                 value="15"/>
+      <arg name="initial_reset"             value="true"/>
+      <arg name="required"                  value="true"/>
+      <arg name="external_manager"          value="$(eval manager != '')"/>
+      <arg name="manager"                   value="$(eval manager if manager != '' else 'realsense2_camera_manager')"/>
+    </include>
+  </group>
+</launch>

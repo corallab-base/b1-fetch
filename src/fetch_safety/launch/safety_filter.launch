@@ -1,0 +1,17 @@
+<launch>
+  <!-- Velocity safety filter: /cmd_vel_raw -> /cmd_vel -->
+  <arg name="config" default="$(find fetch_safety)/config/safety_filter.yaml"/>
+  <!-- false: run without the front camera. Forward is then NOT monitored
+       (passes through instead of being blocked). Side zones still apply. -->
+  <arg name="front_camera" default="true"/>
+  <!-- false: run without the downward front camera. Forward is then watched
+       by the level front camera only. -->
+  <arg name="front_down" default="true"/>
+
+  <node pkg="fetch_safety" type="safety_filter_node" name="safety_filter" output="screen" required="true">
+    <rosparam command="load" file="$(arg config)"/>
+    <rosparam command="load" file="$(find fetch_safety)/config/sources_no_front.yaml" unless="$(arg front_camera)"/>
+    <rosparam command="load" file="$(find fetch_safety)/config/sources_no_front_down.yaml"
+              if="$(eval front_camera and not front_down)"/>
+  </node>
+</launch>

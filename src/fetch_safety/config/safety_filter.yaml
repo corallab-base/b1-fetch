@@ -1,0 +1,106 @@
+# Safety filter configuration. All coordinates are in base_frame (x forward,
+# y left, z up, metres).
+#
+# Footprint assumes the B1 body is ~1.13 m x 0.47 m (half-length 0.56,
+# half-width 0.24). base_link is the body centre; floor measured by the side
+# cameras at z = -0.55 when standing (flat to within ~3 cm, 2026-09-26).
+
+base_frame: base_link
+
+rate: 20.0            # Hz, output rate of /cmd_vel
+cmd_timeout: 0.5      # s, /cmd_vel_raw older than this -> publish zero
+source_timeout: 0.3   # s, camera data older than this -> block its directions
+point_stride: 1       # use every Nth point (decimated 212x120 cloud -> ~25k points)
+
+# Height band of points that count as obstacles. Points below min_z are
+# treated as ground, above max_z as overhead clearance.
+# Standing floor is at -0.55, so -0.45 ~= 10 cm above the floor. Lying down
+# the floor rises into this band and every side zone triggers (by design:
+# the robot can't walk from there anyway).
+min_z: -0.45
+max_z: 0.35
+
+# Multiplier on yaw rate while left or right is blocked (turning swings the
+# body sideways). 1.0 = don't limit turning.
+side_block_yaw_scale: 1.0
+
+# Each source blocks its directions when its data goes stale.
+sources:
+  - name: left_cam
+    topic: /cam_left/depth/color/points
+    directions: [left]
+  - name: right_cam
+    topic: /cam_right/depth/color/points
+    directions: [right]
+  # Front camera on the .23 NX. Until it publishes, forward stays blocked.
+  # (safety_filter.launch front_camera:=false drops it for bench testing.)
+  - name: front_cam
+    topic: /cam_front/depth/color/points
+    directions: [forward]
+  # Downward front camera (.23): covers the near-front floor the forward
+  # camera can't see. Either front camera seeing something blocks forward.
+  - name: front_down_cam
+    topic: /cam_front_down/depth/color/points
+    directions: [forward]
+  # Rear (tail) camera on the .25 NX. Looks straight DOWN: it only sees the
+  # floor from x -0.74 to -0.18, i.e. ~0.18 m past the rear of the body.
+  # The rear zones below are therefore only observed up to x ~ -0.74.
+  - name: rear_cam
+    topic: /cam_rear/depth/color/points
+    directions: [backward]
+
+# Zones are checked against points from all fresh sources. action: stop zeroes
+# the velocity component toward the zone; slowdown scales it by slowdown_ratio.
+# min_points rejects depth noise.
+#
+# Side coverage note: a side camera with ~87 deg HFOV sees only a narrow strip
+# close to the body (and nothing nearer than ~0.2-0.3 m), so the fore/aft ends
+# of the side zones are only covered further out.
+zones:
+  - name: front_stop
+    direction: forward
+    action: stop
+    min_points: 30
+    polygon: [[0.60, -0.35], [1.00, -0.35], [1.00, 0.35], [0.60, 0.35]]
+  - name: front_slow
+    direction: forward
+    action: slowdown
+    slowdown_ratio: 0.3
+    min_points: 30
+    polygon: [[0.60, -0.35], [1.60, -0.35], [1.60, 0.35], [0.60, 0.35]]
+
+  - name: rear_stop
+    direction: backward
+    action: stop
+    min_points: 30
+    polygon: [[-1.00, -0.35], [-0.60, -0.35], [-0.60, 0.35], [-1.00, 0.35]]
+  - name: rear_slow
+    direction: backward
+    action: slowdown
+    slowdown_ratio: 0.3
+    min_points: 30
+    polygon: [[-1.40, -0.35], [-0.60, -0.35], [-0.60, 0.35], [-1.40, 0.35]]
+
+  - name: left_stop
+    direction: left
+    action: stop
+    min_points: 30
+    polygon: [[-0.60, 0.28], [0.60, 0.28], [0.60, 0.60], [-0.60, 0.60]]
+  - name: left_slow
+    direction: left
+    action: slowdown
+    slowdown_ratio: 0.3
+    min_points: 30
+    polygon: [[-0.60, 0.28], [0.60, 0.28], [0.60, 1.00], [-0.60, 1.00]]
+
+  - name: right_stop
+    direction: right
+    action: stop
+    min_points: 30
+    polygon: [[-0.60, -0.60], [0.60, -0.60], [0.60, -0.28], [-0.60, -0.28]]
+  - name: right_slow
+    direction: right
+    action: slowdown
+    slowdown_ratio: 0.3
+    min_points: 30
+    polygon: [[-0.60, -1.00], [0.60, -1.00], [0.60, -0.28], [-0.60, -0.28]]
