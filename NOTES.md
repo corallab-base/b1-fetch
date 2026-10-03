@@ -2,7 +2,9 @@
 
 ## Startup (after a robot restart)
 Everything runs from .23, the head (`ssh unitree@192.168.123.23`); .24 overheats.
-Wait ~1 min after boot for clock sync (`timedatectl`: synchronized: yes).
+After boot, on .23: `sudo ip route replace default via 192.168.123.165` (internet through the
+user's Mac; deliberately not permanent), wait ~1 min until the date is right on .23 and
+`timedatectl` says synchronized: yes, then start ROS (a clock jump mid-run breaks TF).
 ```bash
 source ~/projects/fetch/env.sh                       # every terminal (master: .23)
 roslaunch fetch_safety bringup.launch                # cameras on their boards, filter + /scan on .23
@@ -169,10 +171,11 @@ behind the robot never trigger. So:
   `timedatectl set-ntp false`. Replaces the manual `sudo date -s "$(curl ...)"` after boot.
   Installed + verified 2026-10-04: .23 -0.5 ms, .25 +0.2 ms vs .24 (NTP query). After boot,
   wait for `timedatectl` "synchronized: yes" before starting ROS.
-  Moving the server to .23 (2026-10-04, scripts ready): `sudo boot/setup_gateway.sh` on .23
-  (adds `gateway 192.168.123.165` to eth0 in /etc/network/interfaces, orig .fetch-orig; no board
-  had a persistent internet route), then `sudo boot/setup_timesync.sh` on .23 (installs chrony,
-  serves), .24 (chrony stopped, conf restored, timesyncd -> .23), .25 (timesyncd -> .23).
+  MOVED to .23 (2026-10-04): `sudo boot/setup_timesync.sh` on .23 (chrony installed, makestep
+  1 -1, serves 192.168.123.0/24, local stratum 10), .24 (chrony disabled, its conf restored from
+  .fetch-orig, timesyncd -> .23), .25 (timesyncd -> .23). Verified: .24/.25 -0.1 ms vs .23.
+  .23's internet route is added by hand each boot (user's choice); until then it serves its own
+  (2018) clock and the boards still agree. boot/setup_gateway.sh (permanent route) exists, unused.
 - All boards' /etc/rc.local run `jetson_clocks` (CPU/GPU pinned at max clocks) and fan 255:
   boards stay warm even idle; part of why .24 sits at ~85 C. Not changed.
 - Unitree camera autostart disabled on .23/.24/.25 (`X-GNOME-Autostart-enabled=false` in
