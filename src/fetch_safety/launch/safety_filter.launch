@@ -7,8 +7,11 @@
   <!-- false: run without the downward front camera. Forward is then watched
        by the level front camera only. -->
   <arg name="front_down" default="true"/>
+  <!-- board to run on (a machine declared by the caller); empty = default -->
+  <arg name="machine" default=""/>
 
-  <node pkg="fetch_safety" type="safety_filter_node" name="safety_filter" output="screen" required="true">
+  <node pkg="fetch_safety" type="safety_filter_node" name="safety_filter" output="screen" required="true"
+        machine="$(arg machine)">
     <rosparam command="load" file="$(arg config)"/>
     <rosparam command="load" file="$(find fetch_safety)/config/sources_no_front.yaml" unless="$(arg front_camera)"/>
     <rosparam command="load" file="$(find fetch_safety)/config/sources_no_front_down.yaml"

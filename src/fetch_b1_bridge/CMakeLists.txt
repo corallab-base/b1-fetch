@@ -6,17 +6,13 @@ add_compile_options(-std=c++14 -O2)
 find_package(catkin REQUIRED COMPONENTS roscpp geometry_msgs std_msgs std_srvs nav_msgs sensor_msgs tf2_ros)
 catkin_package()
 
-# Unitree's SDK is used in place (not copied): the same 3.8.3 build that
-# a2_ros2udp links against.
-set(UNITREE_SDK_DIR "$ENV{HOME}/UnitreeSLAM/sdk/unitree_legged_sdk-3.8.3"
-    CACHE PATH "unitree_legged_sdk 3.8.3 root")
+# Unitree's SDK 3.8.3 (headers + arm64 library) is kept in the repo, so
+# every board builds the bridge the same way.
+set(UNITREE_SDK_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../../third_party/unitree_legged_sdk-3.8.3"
+    CACHE PATH "unitree_legged_sdk 3.8.3 root" FORCE)
 set(UNITREE_SDK_LIB "${UNITREE_SDK_DIR}/lib/cpp/arm64/libunitree_legged_sdk.so")
-# The same workspace is built on every board, but only boards with the SDK
-# get the bridge programs (the bridge runs on one board, .24 today).
 if(NOT EXISTS "${UNITREE_SDK_LIB}")
-  message(WARNING "unitree_legged_sdk not found at ${UNITREE_SDK_LIB}: not building the B1 bridge on this board")
-  install(DIRECTORY launch DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION})
-  return()
+  message(FATAL_ERROR "unitree_legged_sdk not found at ${UNITREE_SDK_LIB}")
 endif()
 
 include_directories(${catkin_INCLUDE_DIRS} ${UNITREE_SDK_DIR}/include)

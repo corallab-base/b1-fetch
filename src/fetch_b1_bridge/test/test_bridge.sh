@@ -8,7 +8,7 @@
 # ~3 s to start here).
 HERE=$(cd "$(dirname "$0")" && pwd)
 S=$(mktemp -d)
-SDK=${UNITREE_SDK_DIR:-$HOME/UnitreeSLAM/sdk/unitree_legged_sdk-3.8.3}
+SDK=${UNITREE_SDK_DIR:-$HERE/../../../third_party/unitree_legged_sdk-3.8.3}
 g++ -std=c++14 -O2 $HERE/fake_robot.cpp -I$SDK/include -L$SDK/lib/cpp/arm64 -lunitree_legged_sdk \
     -pthread -Wl,-rpath,$SDK/lib/cpp/arm64 -o $S/fake_robot || exit 1
 source ~/projects/fetch/env.sh >/dev/null 2>&1

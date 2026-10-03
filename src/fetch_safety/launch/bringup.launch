@@ -1,34 +1,75 @@
 <launch>
-  <!-- All safety cameras + safety filter in one command, run from .24:
+  <!-- All safety cameras + safety filter + /scan in one command, from any
+       board with SSH access to the others (.23, the head, normally):
          source ~/projects/fetch/env.sh
          roslaunch fetch_safety bringup.launch
-       roslaunch starts roscore if none is running, and starts the front and
-       rear cameras on .23/.25 over SSH (key auth; env-loader remote_env.sh).
-       Each camera runs with its zone_checker on its own board (camera.launch);
-       only per-zone counts reach the filter. Deploy code to all boards with
-       ~/projects/fetch/deploy.sh first.
-       Every camera is required: if any fails, the whole bringup stops.
-       The B1 bridge is NOT started here: stand the robot up first, then
-       launch it separately. -->
+       roslaunch starts the master if none is running (env.sh: on .23) and
+       starts each board's nodes over SSH (env-loader remote_env.sh), or
+       locally for the board it runs on. Deploy code to all boards first
+       (~/projects/fetch/deploy.sh).
+       Cameras run where they are plugged in, each with its zone_checker
+       (camera.launch); only per-zone counts and small scans leave a board.
+       The filter, scan merger and camera mounts run on `core`.
+       Every camera and the filter are required: if any fails, the whole
+       bringup stops. The B1 bridge is NOT started here: stand the robot up
+       first, then launch it separately (on the head board). -->
   <arg name="base_frame" default="base_link"/>
   <!-- Downward front camera (.23). Off by default: its mount pitch is still a
        placeholder. -->
   <arg name="front_down" default="false"/>
+  <!-- board for the filter, scan merger and mounts: the head (.24 overheats) -->
+  <arg name="core" default="nx23"/>
 
-  <!-- Left / right (.24) -->
+  <!-- Boards. A <machine default="true"> is not scoped to a group: it
+       applies to every node declared after it, so each board's section
+       starts with its machine. Core nodes at the end name their machine. -->
+
+  <!-- .24 (body): left / right cameras -->
+  <machine name="nx24" address="192.168.123.24" user="unitree" timeout="30" default="true"
+           env-loader="/home/unitree/projects/fetch/remote_env.sh"/>
   <include file="$(find fetch_safety)/launch/side_cameras.launch">
     <arg name="base_frame" value="$(arg base_frame)"/>
   </include>
+
+  <!-- .25 (tail): rear camera, looking (almost) straight down; USB 2.1, so 480x270 -->
+  <machine name="nx25" address="192.168.123.25" user="unitree" timeout="30" default="true"
+           env-loader="/home/unitree/projects/fetch/remote_env.sh"/>
+  <include file="$(find fetch_safety)/launch/camera.launch">
+    <arg name="camera"    value="cam_rear"/>
+    <arg name="serial_no" value="150622073015"/>
+    <arg name="width"     value="480"/>
+    <arg name="height"    value="270"/>
+  </include>
+
+  <!-- .23 (head): the forward-looking head camera, plus the downward head
+       camera that covers low obstacles close in front (the forward camera
+       can't see below ~0.3 m within 1 m of the robot). -->
+  <machine name="nx23" address="192.168.123.23" user="unitree" timeout="30" default="true"
+           env-loader="/home/unitree/projects/fetch/remote_env.sh"/>
+  <!-- both .23 cameras in one driver process (see camera.launch) -->
+  <node pkg="nodelet" type="nodelet" name="cam_manager_23" args="manager" output="screen" required="true"/>
+  <include file="$(find fetch_safety)/launch/camera.launch">
+    <arg name="camera"    value="cam_front"/>
+    <arg name="serial_no" value="150622072829"/>
+    <arg name="manager"   value="/cam_manager_23"/>
+  </include>
+  <include if="$(arg front_down)" file="$(find fetch_safety)/launch/camera.launch">
+    <arg name="camera"    value="cam_front_down"/>
+    <arg name="serial_no" value="150622071014"/>
+    <arg name="manager"   value="/cam_manager_23"/>
+  </include>
+
+  <!-- Core: camera mounts, safety filter, merged /scan -->
 
   <!-- Front/rear mounts. Positions from Unitree's b1_description
        (head_camera_1 xyz="0.48883 0 0.0255", tail_camera xyz="-0.459 0 -0.081");
        its rpy="0 0 0" is wrong for these cameras, so pitch comes from the
        floor check. args: x y z yaw pitch roll parent child (pitch + = down). -->
-  <node pkg="tf2_ros" type="static_transform_publisher" name="tf_cam_front"
+  <node machine="$(arg core)" pkg="tf2_ros" type="static_transform_publisher" name="tf_cam_front"
         args=" 0.48883 0  0.0255  0       0.0  0 $(arg base_frame) cam_front_link"/>
   <!-- Downward front camera: head_camera_2 position from the model; tilt is
        a PLACEHOLDER until solved from the floor plane. -->
-  <node if="$(arg front_down)" pkg="tf2_ros" type="static_transform_publisher" name="tf_cam_front_down"
+  <node machine="$(arg core)" if="$(arg front_down)" pkg="tf2_ros" type="static_transform_publisher" name="tf_cam_front_down"
         args=" 0.4543  0 -0.081   0       0.82 0 $(arg base_frame) cam_front_down_link"/>
   <!-- Rear camera looks (almost) straight down, image-top toward the rear.
        Solved from its floor plane with the robot standing (2026-09-26):
@@ -36,52 +77,19 @@
        optical axis 88.7 deg down. Verified: floor lands at -0.575, only the
        hind legs are above it. Given as a quaternion (x y z qx qy qz qw):
        yaw/pitch/roll are near gimbal lock for a straight-down camera. -->
-  <node pkg="tf2_ros" type="static_transform_publisher" name="tf_cam_rear"
+  <node machine="$(arg core)" pkg="tf2_ros" type="static_transform_publisher" name="tf_cam_rear"
         args="-0.459 0 -0.072  0.70565 -0.00776 -0.70848 0.00779 $(arg base_frame) cam_rear_link"/>
 
   <include file="$(find fetch_safety)/launch/safety_filter.launch">
     <arg name="front_camera" value="true"/>
     <arg name="front_down"   value="$(arg front_down)"/>
+    <arg name="machine"      value="$(arg core)"/>
   </include>
 
   <!-- One obstacle scan (/scan) from the zone_checkers' per-camera scans, for
        mapping and move_base. Not required: safety doesn't depend on it. -->
-  <node pkg="fetch_safety" type="scan_merger_node" name="scan_merger" output="screen">
+  <node machine="$(arg core)" pkg="fetch_safety" type="scan_merger_node" name="scan_merger" output="screen">
     <rosparam param="scans" if="$(arg front_down)">[/cam_left/scan, /cam_right/scan, /cam_front/scan, /cam_front_down/scan, /cam_rear/scan]</rosparam>
     <rosparam param="scans" unless="$(arg front_down)">[/cam_left/scan, /cam_right/scan, /cam_front/scan, /cam_rear/scan]</rosparam>
   </node>
-
-  <!-- Remote cameras. KEEP THESE LAST: a <machine default="true"> is not
-       scoped to its <group>, it applies to every node declared after it. -->
-  <!-- Front (.23): the forward-looking head camera, plus the downward head
-       camera that covers low obstacles close in front (the forward camera
-       can't see below ~0.3 m within 1 m of the robot). -->
-  <group>
-    <machine name="nx23" address="192.168.123.23" user="unitree" timeout="30" default="true"
-             env-loader="/home/unitree/projects/fetch/remote_env.sh"/>
-    <!-- both .23 cameras in one driver process (see camera.launch) -->
-    <node pkg="nodelet" type="nodelet" name="cam_manager_23" args="manager" output="screen" required="true"/>
-    <include file="$(find fetch_safety)/launch/camera.launch">
-      <arg name="camera"    value="cam_front"/>
-      <arg name="serial_no" value="150622072829"/>
-      <arg name="manager"   value="/cam_manager_23"/>
-    </include>
-    <include if="$(arg front_down)" file="$(find fetch_safety)/launch/camera.launch">
-      <arg name="camera"    value="cam_front_down"/>
-      <arg name="serial_no" value="150622071014"/>
-      <arg name="manager"   value="/cam_manager_23"/>
-    </include>
-  </group>
-
-  <!-- Rear (.25): tail camera, tilted steeply down; USB 2.1, so 480x270 -->
-  <group>
-    <machine name="nx25" address="192.168.123.25" user="unitree" timeout="30" default="true"
-             env-loader="/home/unitree/projects/fetch/remote_env.sh"/>
-    <include file="$(find fetch_safety)/launch/camera.launch">
-      <arg name="camera"    value="cam_rear"/>
-      <arg name="serial_no" value="150622073015"/>
-      <arg name="width"     value="480"/>
-      <arg name="height"    value="270"/>
-    </include>
-  </group>
 </launch>

@@ -2,21 +2,23 @@
 # Put this repo's current commit on the other NX boards and build it there,
 # so every board runs the same code from the same git history.
 #
-#   GitHub (origin) <-> .24 (this board) --push over SSH--> .23, .25
+#   GitHub (origin) <-> .24 (development, internet) --push over SSH--> .23, .25
 #
 # .23/.25 have no internet, so only .24 talks to GitHub (git pull/push as
 # usual); this script then pushes HEAD to ~/projects/fetch on the other
 # boards (receive.denyCurrentBranch=updateInstead updates their checkout) and
-# runs catkin_make there.
+# runs catkin_make there. It works from any board: by default it deploys to
+# every board but the one it runs on.
 #
-# Usage:  ./deploy.sh            # .23 and .25
+# Usage:  ./deploy.sh            # all other boards
 #         ./deploy.sh 23         # one board
 # Commit first: it deploys HEAD, not uncommitted changes. Building is heavy:
 # it refuses while a camera/ROS stack runs on the target board. A board with
 # local edits refuses the push (fix or commit them from .24 instead).
 set -e
 cd "$(dirname "$0")"
-BOARDS=${@:-23 25}
+ME=$(hostname -I | tr ' ' '\n' | grep -m1 '^192\.168\.123\.' | cut -d. -f4)
+BOARDS=${@:-$(for b in 23 24 25; do [ "$b" = "$ME" ] || echo $b; done)}
 [ -z "$(git status --porcelain --untracked-files=no)" ] || echo "note: uncommitted changes here are NOT deployed (deploying $(git rev-parse --short HEAD))"
 BRANCH=$(git rev-parse --abbrev-ref HEAD)
 

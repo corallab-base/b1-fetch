@@ -1,29 +1,32 @@
 # fetch — B1 safety filter: status checkpoint (2026-09-26)
 
 ## Startup (after a robot restart)
+Everything runs from .23, the head (`ssh unitree@192.168.123.23`); .24 overheats.
+Wait ~1 min after boot for clock sync (`timedatectl`: synchronized: yes).
 ```bash
-source ~/projects/fetch/env.sh                       # every terminal
-roslaunch fetch_safety bringup.launch                # 4 cameras (.24/.23/.25 over SSH) + safety filter; front_down:=true adds the 5th
-~/projects/fetch/devel/lib/fetch_b1_bridge/b1_stand_up
+source ~/projects/fetch/env.sh                       # every terminal (master: .23)
+roslaunch fetch_safety bringup.launch                # cameras on their boards, filter + /scan on .23
+# stand the robot (remote L2+A, or b1_stand_up)
 roslaunch fetch_b1_bridge b1_bridge.launch idle_mode:=1   # starts DISARMED, sends nothing
-rosservice call /b1_bridge/arm                             # ONLY after checking the robot stands
-rostopic pub -r 10 /cmd_vel_raw geometry_msgs/Twist '{linear: {x: 0.0, y: 0.1, z: 0.0}}'   # always /cmd_vel_raw
+rosservice call /b1_bridge/arm                       # ONLY after checking the robot stands
+rosrun fetch_nav teleop_keys.py                      # or: rostopic pub -r 10 /cmd_vel_raw ...
 ```
-Shutdown: Ctrl+C pub -> `rosservice call /b1_bridge/disarm` -> Ctrl+C bridge -> `b1_stand_down` -> Ctrl+C bringup -> power off.
-
-> **Do not use this with the robot standing until the open issues below are fixed.**
+Shutdown: release keys -> `rosservice call /b1_bridge/disarm` -> Ctrl+C bridge ->
+L2+A or `b1_stand_down` -> Ctrl+C bringup -> power off.
 
 ## Code on the boards (since 2026-10-04)
 - One git repo, same code everywhere: GitHub origin (https://github.com/MahitMehta/fetch-unitree,
   pushed/pulled from .24 only; .24 has no stored GitHub login, the user pushes) -> .24 ->
-  `./deploy.sh` pushes HEAD to ~/projects/fetch on .23/.25 over SSH (they have no internet)
-  and runs catkin_make there. Commit before deploying. Never edit on .23/.25 directly
+  `./deploy.sh` pushes HEAD to ~/projects/fetch on the other boards over SSH (.23/.25 have no
+  internet) and runs catkin_make there. Commit before deploying. Never edit on .23/.25 directly
   (the push refuses if their checkout has local changes).
 - build/, devel/, logs, bags are not in git; each board builds its own workspace.
-- `env.sh` works on any board (ROS_IP auto-detected, master .24 unless FETCH_MASTER_URI is set);
+- `env.sh` works on any board (ROS_IP auto-detected, master .23 unless FETCH_MASTER_URI is set);
   `remote_env.sh` is the roslaunch env-loader for nodes started on other boards.
-- Per-board differences left: Unitree SDK only on .24 (fetch_b1_bridge skips its programs
-  elsewhere, so the bridge can only run on .24); realsense-ros 2.3.2 is in src/ on .23/.25
+- Unitree legged_sdk 3.8.3 (BSD-3, headers + arm64 lib) is in third_party/, so the bridge
+  builds on every board. `.23` has an SSH key (ed25519) authorized on .24/.25 (2026-10-04), so
+  bringup can be launched from .23; .24 also reaches .23/.25.
+- Per-board differences left: realsense-ros 2.3.2 is in src/ on .23/.25
   (ignored by git) but in ~/realsense_ws on .24. ~/.bashrc on .24 also sets ROS_IP/master.
 - Every camera has a zone_checker on its own board (camera.launch) publishing
   /<cam>/zone_counts; the filter only reads those, so it (and later move_base) can run
@@ -33,9 +36,9 @@ Shutdown: Ctrl+C pub -> `rosservice call /b1_bridge/disarm` -> Ctrl+C bridge -> 
 ## Layout
 | Board | Cameras (serial) | Role |
 |---|---|---|
-| .24 (this) | left 152122075367, right 150622073088 | side zones, filter, bridge |
-| .23 | front 150622072829 (level), front_down 150622071014 (steep down) | forward |
-| .25 | rear 150622073015 (straight down, USB 2.1 -> 480x270) | backward (sees only ~0.18 m past the tail) |
+| .23 (head) | front 150622072829 (level), front_down 150622071014 (steep down) | ROS master, filter, scan merger, mounts, bridge, mapping (since 2026-10-04) |
+| .24 (body) | left 152122075367, right 150622073088 | side cameras; development (git hub, Claude); NTP server (Wi-Fi 192.168.11.110). Runs 85 C even idle -> hardware/airflow issue |
+| .25 (tail) | rear 150622073015 (straight down, USB 2.1 -> 480x270) | rear camera (can't see behind, see Rear coverage); MODE_15W_2CORE unlike the others |
 | .220 | B1 high-level controller (separate machine) | bridge target :8082 |
 | .10 | motor MCU | |
 
