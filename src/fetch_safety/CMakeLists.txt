@@ -31,7 +31,11 @@ add_executable(zone_checker_node src/zone_checker_node.cpp)
 target_link_libraries(zone_checker_node ${catkin_LIBRARIES})
 add_dependencies(zone_checker_node ${PROJECT_NAME}_generate_messages_cpp)
 
-install(TARGETS safety_filter_node zone_checker_node
+# Combines the zone_checkers' per-camera scans into /scan
+add_executable(scan_merger_node src/scan_merger_node.cpp)
+target_link_libraries(scan_merger_node ${catkin_LIBRARIES})
+
+install(TARGETS safety_filter_node zone_checker_node scan_merger_node
   RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION})
 install(DIRECTORY config launch
   DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION})

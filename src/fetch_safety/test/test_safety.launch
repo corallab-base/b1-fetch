@@ -5,6 +5,9 @@
   <include file="$(find fetch_safety)/launch/safety_filter.launch">
     <arg name="front_down" value="false"/>
   </include>
+  <node pkg="fetch_safety" type="scan_merger_node" name="scan_merger" required="true">
+    <rosparam param="scans">[/cam_left/scan, /cam_right/scan, /cam_front/scan, /cam_rear/scan]</rosparam>
+  </node>
   <group ns="cam_left">
     <node pkg="fetch_safety" type="zone_checker_node" name="zone_checker" required="true">
       <rosparam command="load" file="$(find fetch_safety)/config/safety_filter.yaml"/>

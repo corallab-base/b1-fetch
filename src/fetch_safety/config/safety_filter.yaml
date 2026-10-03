@@ -24,6 +24,14 @@ max_z: 0.35
 # body sideways). 1.0 = don't limit turning.
 side_block_yaw_scale: 1.0
 
+# Obstacle scan each zone_checker publishes (/<cam>/scan, merged into /scan
+# by scan_merger_node): nearest point in the height band per angle bin.
+# body_box [min_x, max_x, min_y, max_y] is the robot itself (legs show up in
+# the side/rear cameras); it matches the inner edges of the zones.
+scan_bins: 360
+scan_range_max: 4.0
+body_box: [-0.60, 0.60, -0.28, 0.28]
+
 # Command inputs, highest priority first: the first with a fresh command
 # (newer than cmd_timeout) drives, so manual teleop overrides navigation.
 # blocked_directions: never move that way, whatever the cameras see.

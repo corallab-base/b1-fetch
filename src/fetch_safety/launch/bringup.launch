@@ -44,6 +44,13 @@
     <arg name="front_down"   value="$(arg front_down)"/>
   </include>
 
+  <!-- One obstacle scan (/scan) from the zone_checkers' per-camera scans, for
+       mapping and move_base. Not required: safety doesn't depend on it. -->
+  <node pkg="fetch_safety" type="scan_merger_node" name="scan_merger" output="screen">
+    <rosparam param="scans" if="$(arg front_down)">[/cam_left/scan, /cam_right/scan, /cam_front/scan, /cam_front_down/scan, /cam_rear/scan]</rosparam>
+    <rosparam param="scans" unless="$(arg front_down)">[/cam_left/scan, /cam_right/scan, /cam_front/scan, /cam_rear/scan]</rosparam>
+  </node>
+
   <!-- Remote cameras. KEEP THESE LAST: a <machine default="true"> is not
        scoped to its <group>, it applies to every node declared after it. -->
   <!-- Front (.23): the forward-looking head camera, plus the downward head

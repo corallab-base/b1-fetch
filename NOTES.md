@@ -115,6 +115,17 @@ Why: any packet carries a mode, a lying B1 stands up from a few ms of mode 1, an
   publishes /cmd_vel directly at 0.1 m/s in a clear area.
   Open: does the remote read zero when untouched/switched off (else arming trips at once)?
 
+## Mapping (since 2026-10-04)
+- Every zone_checker also publishes /<cam>/scan (LaserScan in base_link, 360 x 1 deg, <= 4 m,
+  nearest point in the safety height band, robot body_box excluded; +inf = saw floor only,
+  NaN = not looked). scan_merger_node (in bringup) -> /scan, ~1.5 KB/msg.
+- fetch_nav: `mapping.launch` (RTAB-Map 0.20 scan-only ICP SLAM on /scan + TF odom, grid
+  /rtabmap/grid_map, db in ~/projects/fetch/maps/<map>.db, git-ignored), `teleop_keys.py`
+  (hold-to-move -> /cmd_vel_raw), `record_mapping.sh` (small bag: scans, odom, tf, state).
+- Offline smoke test: synthetic 4x3 m room -> walls reproduced to 1 cm. Not yet on the robot.
+- Coverage: front + sides only (~260 deg minus gaps), 3 m camera clip, so maps need slow
+  drives with turns; no loop closure by appearance (no images), only by proximity.
+
 ## Rear coverage (2026-10-04, robot standing, measured on .25)
 The rear camera (88.7 deg down) sees the floor only from x -0.71 to -0.21, mostly under the
 robot. At obstacle height it reaches at most 7 cm into the rear zones (x <= -0.60), nothing

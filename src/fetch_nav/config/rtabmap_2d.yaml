@@ -1,0 +1,37 @@
+# RTAB-Map parameters for 2D mapping from the merged depth-camera scan
+# (/scan: 1 deg bins, <= 4 m, front + sides, nothing behind) and leg odometry.
+# Values are strings, as rtabmap expects.
+
+Reg/Strategy: "1"                    # ICP on the scans (no images)
+Reg/Force3DoF: "true"                # x, y, yaw only
+Kp/MaxFeatures: "-1"                 # no visual words
+Mem/NotLinkedNodesKept: "false"
+
+# Add a node every 10 cm / ~3 deg of motion, refine each odometry step
+# against the previous scan, and look for loop closures by proximity
+# (the only loop closure possible without images).
+RGBD/LinearUpdate: "0.10"
+RGBD/AngularUpdate: "0.05"
+RGBD/NeighborLinkRefining: "true"
+RGBD/ProximityBySpace: "true"
+RGBD/ProximityPathMaxNeighbors: "1"
+RGBD/ProximityMaxGraphDepth: "0"
+RGBD/OptimizeFromGraphEnd: "false"
+
+Icp/Strategy: "1"                    # libpointmatcher
+Icp/VoxelSize: "0.05"
+Icp/MaxCorrespondenceDistance: "0.15"
+Icp/PointToPlane: "true"
+Icp/PointToPlaneK: "10"
+Icp/PointToPlaneRadius: "0"
+Icp/Iterations: "10"
+Icp/Epsilon: "0.001"
+Icp/MaxTranslation: "0.5"
+Icp/OutlierRatio: "0.7"
+Icp/CorrespondenceRatio: "0.2"
+
+# Occupancy grid from the scan; rays clear free space up to the range
+Grid/Sensor: "0"
+Grid/CellSize: "0.05"
+Grid/RangeMax: "3.5"
+Grid/RayTracing: "true"

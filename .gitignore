@@ -9,3 +9,5 @@ build.log
 # third-party source built in place on some boards (realsense-ros 2.3.2;
 # .24 uses ~/realsense_ws instead)
 /src/realsense-ros/
+# map databases (large; keep exported .pgm/.yaml if needed)
+/maps/*.db

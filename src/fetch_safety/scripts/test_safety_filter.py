@@ -13,7 +13,7 @@ import threading
 import rospy
 from geometry_msgs.msg import Twist
 from sensor_msgs import point_cloud2
-from sensor_msgs.msg import PointCloud2
+from sensor_msgs.msg import LaserScan, PointCloud2
 from std_msgs.msg import Header, String
 from fetch_safety.msg import ZoneCounts
 
@@ -31,6 +31,8 @@ class Harness(object):
         self.cmd_pub = rospy.Publisher('/cmd_vel_raw', Twist, queue_size=1)
         self.nav_pub = rospy.Publisher('/cmd_vel_nav', Twist, queue_size=1)
         self.status = ''
+        self.scan = None
+        rospy.Subscriber('/scan', LaserScan, self._on_scan)
         rospy.Subscriber('/safety_filter/status', String, self._on_status)
         self.lock = threading.Lock()
         self.points = {k: [] for k in TOPICS}   # points each fake camera "sees"
@@ -40,6 +42,17 @@ class Harness(object):
         rospy.Subscriber('/cmd_vel', Twist, self._on_out)
         rospy.Timer(rospy.Duration(1.0 / 15), self._publish_clouds)
         self.failures = 0
+
+    def _on_scan(self, msg):
+        self.scan = msg
+
+    def scan_at(self, deg):
+        """Merged /scan range at a bearing (degrees, 0 = forward, 90 = left)."""
+        import math
+        s = self.scan
+        # bin whose span [centre - inc/2, centre + inc/2) contains the bearing
+        b = int(math.floor((math.radians(deg) - s.angle_min) / s.angle_increment + 0.5)) % len(s.ranges)
+        return s.ranges[b]
 
     def _on_status(self, msg):
         self.status = msg.data
@@ -83,6 +96,24 @@ class Harness(object):
             rospy.sleep(0.8)  # > cmd_timeout
         o = self.out
         return (round(o.linear.x, 3), round(o.linear.y, 3), round(o.angular.z, 3))
+
+    def check_scan(self, name, deg, lo, hi=None):
+        """/scan at a bearing is in [lo, hi], or 'nan' / 'inf'. Blobs start
+        exactly at 0/90 deg, a bin boundary, so bearings are picked inside them."""
+        rospy.sleep(0.3)
+        r = self.scan_at(deg)
+        if lo == 'nan':
+            ok = r != r
+        elif lo == 'inf':
+            ok = r == float('inf')
+        else:
+            ok = lo <= r <= hi
+        print('%s %-55s got %s expected %s' % ('PASS' if ok else 'FAIL', name, r, lo if hi is None else '%s..%s' % (lo, hi)))
+        if not ok:
+            self.failures += 1
+            s = self.scan
+            print('     scan stamp %s, non-NaN bins: %s' % (s and s.header.stamp.to_sec(),
+                  s and [(i, round(x, 2)) for i, x in enumerate(s.ranges) if x == x][:6]))
 
     def check(self, name, got, expected):
         ok = all(abs(a - b) < 1e-3 for a, b in zip(got, expected))
@@ -128,6 +159,8 @@ def main():
     h.set_scene(everyone, {'front': blob(0.8, 0.0)})
     h.check('obstacle in front_stop: vx zeroed, vy kept', h.command(0.5, -0.3), (0.0, -0.3, 0.0))
     h.check('obstacle in front_stop: reversing allowed', h.command(-0.5, 0.0), (-0.5, 0.0, 0.0))
+    h.check_scan('/scan: front obstacle at ~0.8 m straight ahead', 1, 0.79, 0.86)
+    h.check_scan('/scan: nothing seen behind -> unknown (NaN)', 180, 'nan')
 
     h.set_scene(everyone, {'rear': blob(-0.8, 0.0)})
     h.check('obstacle in rear_stop: vx<0 zeroed', h.command(-0.4, 0.0), (0.0, 0.0, 0.0))
@@ -141,6 +174,7 @@ def main():
 
     h.set_scene(everyone, {'front': blob(0.8, 0.0, z=-0.55)})
     h.check('ground points below min_z: ignored', h.command(0.5, 0.0), (0.5, 0.0, 0.0))
+    h.check_scan('/scan: floor only ahead -> clear (+inf)', 1, 'inf')
 
     h.set_scene(everyone, {'left': blob(0.0, 0.45)})
     h.check('obstacle in left_stop: vy>0 zeroed', h.command(0.3, 0.3), (0.3, 0.0, 0.0))
@@ -151,6 +185,11 @@ def main():
 
     h.set_scene(everyone, {'left': blob(0.0, 0.1)})
     h.check('points inside footprint (no zone): ignored', h.command(0.5, 0.3), (0.5, 0.3, 0.0))
+    h.check_scan('/scan: points inside the body box ignored', 87, 'nan')
+
+    h.set_scene(everyone, {'left': blob(0.0, 0.45), 'front': blob(1.3, 0.0)})
+    h.check_scan('/scan: merged, left camera obstacle at ~0.45 m', 87, 0.44, 0.52)
+    h.check_scan('/scan: merged, front camera obstacle at ~1.3 m', 1, 1.29, 1.36)
 
     # counts from a checker with a different zone config are ignored -> stale
     h.set_scene(['left', 'right', 'rear'])

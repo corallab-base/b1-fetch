@@ -10,6 +10,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstring>
+#include <limits>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -95,12 +96,44 @@ inline std::vector<Zone> loadZones(ros::NodeHandle& pnh) {
   return zones;
 }
 
+// Planar obstacle scan around the base frame origin, built in the same pass
+// as the zone counts: per angle bin, the nearest point in the height band.
+// Bins where the camera saw anything (floor included) but no obstacle are
+// clear (+inf); bins it didn't see at all are unknown (NaN). Points inside
+// the body box (the robot itself, e.g. the legs) are ignored.
+struct ScanBuilder {
+  int bins = 360;          // over a full turn, starting at -pi
+  float range_max = 4.0f;  // m from the base frame origin
+  float body_min_x = 0, body_max_x = 0, body_min_y = 0, body_max_y = 0;
+  std::vector<float> nearest;  // per bin, +inf = nothing in the band
+  std::vector<uint8_t> seen;
+
+  void reset() {
+    nearest.assign(bins, std::numeric_limits<float>::infinity());
+    seen.assign(bins, 0);
+  }
+  void add(const Eigen::Vector3f& q, bool in_band) {
+    if (q.x() >= body_min_x && q.x() <= body_max_x && q.y() >= body_min_y && q.y() <= body_max_y) return;
+    const float r = std::hypot(q.x(), q.y());
+    if (r > range_max) return;
+    const int b = std::min(bins - 1, std::max(0, int((std::atan2(q.y(), q.x()) + float(M_PI)) / (2 * float(M_PI)) * bins)));
+    seen[b] = 1;
+    if (in_band) nearest[b] = std::min(nearest[b], r);
+  }
+  // LaserScan ranges: nearest obstacle, +inf where seen and clear, NaN where unseen
+  std::vector<float> ranges() const {
+    std::vector<float> out(bins);
+    for (int b = 0; b < bins; ++b) out[b] = seen[b] ? nearest[b] : std::numeric_limits<float>::quiet_NaN();
+    return out;
+  }
+};
+
 // Points of `cloud` per zone, after transforming into the base frame with
-// (R, t) and keeping only z in [min_z, max_z]. Returns false (counts
-// untouched) and sets `error` if the cloud can't be read.
+// (R, t) and keeping only z in [min_z, max_z]; also fills `scan` if given.
+// Returns false (counts untouched) and sets `error` if the cloud can't be read.
 inline bool countZones(const sensor_msgs::PointCloud2& cloud, const Eigen::Matrix3f& R, const Eigen::Vector3f& t,
                        const std::vector<Zone>& zones, double min_z, double max_z, int point_stride,
-                       std::vector<int>& counts, std::string& error) {
+                       std::vector<int>& counts, std::string& error, ScanBuilder* scan = nullptr) {
   int ox = -1, oy = -1, oz = -1;
   for (const auto& f : cloud.fields) {
     if (f.datatype != sensor_msgs::PointField::FLOAT32) continue;
@@ -119,6 +152,7 @@ inline bool countZones(const sensor_msgs::PointCloud2& cloud, const Eigen::Matri
   }
 
   std::vector<int> result(zones.size(), 0);
+  if (scan) scan->reset();
   const size_t n = size_t(cloud.width) * cloud.height;
   for (size_t i = 0; i < n; i += std::max(1, point_stride)) {
     const uint8_t* p = &cloud.data[(i / cloud.width) * cloud.row_step + (i % cloud.width) * cloud.point_step];
@@ -129,7 +163,9 @@ inline bool countZones(const sensor_msgs::PointCloud2& cloud, const Eigen::Matri
     if (!std::isfinite(x) || !std::isfinite(y) || !std::isfinite(z)) continue;
 
     const Eigen::Vector3f q = R * Eigen::Vector3f(x, y, z) + t;
-    if (q.z() < min_z || q.z() > max_z) continue;
+    const bool in_band = q.z() >= min_z && q.z() <= max_z;
+    if (scan) scan->add(q, in_band);
+    if (!in_band) continue;
     for (size_t k = 0; k < zones.size(); ++k) {
       if (zones[k].contains(q.x(), q.y())) ++result[k];
     }
