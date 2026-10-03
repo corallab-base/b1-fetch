@@ -25,6 +25,10 @@
   <!-- zones and height band; must be the filter's config (the filter ignores
        counts whose zone names don't match its own) -->
   <arg name="safety_config" default="$(find fetch_safety)/config/safety_filter.yaml"/>
+  <!-- also publish the left infrared image (8-bit grayscale, same viewpoint
+       as the depth) as infra1/image_rect_raw, e.g. for RTAB-Map place
+       recognition. Shows the projector's dot pattern. -->
+  <arg name="infra" default="false"/>
 
   <group ns="$(arg camera)">
     <include file="$(find realsense2_camera)/launch/includes/nodelet.launch.xml">
@@ -33,6 +37,10 @@
       <arg name="filters"                   value="$(arg filters)"/>
       <arg name="pointcloud_texture_stream" value="RS2_STREAM_ANY"/>
       <arg name="enable_color"              value="false"/>
+      <arg name="enable_infra1"             value="$(arg infra)"/>
+      <arg name="infra_width"               value="$(arg width)"/>
+      <arg name="infra_height"              value="$(arg height)"/>
+      <arg name="infra_fps"                 value="15"/>
       <arg name="clip_distance"             value="3.0"/>
       <!-- Re-send the camera's internal frames on /tf instead of once on
            latched /tf_static: two cameras in one nodelet manager share one

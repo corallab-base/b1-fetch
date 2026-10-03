@@ -17,6 +17,8 @@
   <!-- Downward front camera (.23). Off by default: its mount pitch is still a
        placeholder. -->
   <arg name="front_down" default="false"/>
+  <!-- front camera also publishes its infrared image (/cam_front/infra1/image_rect_raw) -->
+  <arg name="front_infra" default="false"/>
   <!-- board for the filter, scan merger and mounts: the head (.24 overheats) -->
   <arg name="core" default="nx23"/>
 
@@ -52,6 +54,7 @@
     <arg name="camera"    value="cam_front"/>
     <arg name="serial_no" value="150622072829"/>
     <arg name="manager"   value="/cam_manager_23"/>
+    <arg name="infra"     value="$(arg front_infra)"/>
   </include>
   <include if="$(arg front_down)" file="$(find fetch_safety)/launch/camera.launch">
     <arg name="camera"    value="cam_front_down"/>
