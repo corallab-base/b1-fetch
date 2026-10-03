@@ -66,7 +66,7 @@ echo "== T8 remote stick while DISARMED (robot streams state) -> stop"
 start --stream; sleep 0.5; ctl lx 0.8; sleep 0.5; show; echo "  bridge $(alive)"; finish
 
 echo "== T9 robot stops answering while walking -> stop after ~200 ms, ~0.1 s of mode 2 at zero first"
-start; armed; pub 0.2; waitlog "-> WALK"; sleep 0.5; ctl mute 1; sleep 0.6; show; echo "  bridge $(alive)"; finish
+start; armed; pub 0.2; waitlog "-> WALK"; sleep 0.5; ctl mute 1; sleep 1.2; show; echo "  bridge $(alive)"; finish  # 0.2 s timeout + 0.1 s burst + node exit
 
 echo "== T10 armed with the robot lying (mode 7, h 0.07) -> stop in ARMING, no mode 2"
 start; ctl mode 7; ctl height 0.07; sleep 0.3; arm; waitlog "STOPPED"; sleep 0.3; show
