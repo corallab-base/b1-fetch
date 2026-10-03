@@ -1,0 +1,10 @@
+# Added on top of rtabmap_2d.yaml when mapping.launch camera:=true: the front
+# camera's (filtered) infrared image + depth for place recognition. Scans
+# still drive tracking and the grid; images propose loop closures, and
+# visual matching gives the guess that ICP on the scans refines.
+Kp/MaxFeatures: "400"
+Reg/Strategy: "2"          # visual, then ICP refinement
+Vis/MinInliers: "15"
+Vis/MaxDepth: "4.0"        # m; the D430 depth is unreliable beyond
+Mem/ImagePreDecimation: "1"
+Mem/ImagePostDecimation: "1"

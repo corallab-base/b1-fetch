@@ -14,6 +14,7 @@ RGBD/LinearUpdate: "0.10"
 RGBD/AngularUpdate: "0.05"
 RGBD/NeighborLinkRefining: "true"
 RGBD/ProximityBySpace: "true"
+RGBD/ProximityAngle: "180"           # the scan sees ~360 deg: try regardless of heading
 RGBD/ProximityPathMaxNeighbors: "1"
 RGBD/ProximityMaxGraphDepth: "0"
 RGBD/OptimizeFromGraphEnd: "false"
@@ -33,5 +34,5 @@ Icp/CorrespondenceRatio: "0.2"
 # Occupancy grid from the scan; rays clear free space up to the range
 Grid/Sensor: "0"
 Grid/CellSize: "0.05"
-Grid/RangeMax: "3.5"
+Grid/RangeMax: "2.5"                 # D430 depth gets noisy beyond ~2.5 m (smeared walls)
 Grid/RayTracing: "true"
