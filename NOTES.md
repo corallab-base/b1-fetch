@@ -139,6 +139,8 @@ Why: any packet carries a mode, a lying B1 stands up from a few ms of mode 1, an
   (original in chrony.conf.fetch-orig); .23/.25 /etc/systemd/timesyncd.conf.d/fetch.conf
   (NTP=192.168.123.24) + timesyncd enabled. Undo: restore the .fetch-orig / delete fetch.conf,
   `timedatectl set-ntp false`. Replaces the manual `sudo date -s "$(curl ...)"` after boot.
+  Installed + verified 2026-10-04: .23 -0.5 ms, .25 +0.2 ms vs .24 (NTP query). After boot,
+  wait for `timedatectl` "synchronized: yes" before starting ROS.
 - Unitree camera autostart disabled on .23/.24/.25 (`X-GNOME-Autostart-enabled=false` in
   `~/.config/autostart/b1camera.desktop`; originals in `~/projects/fetch/backup/`).
 - `~/.config/autostart/fetch_usb_reset.desktop` on all three boards -> `~/projects/fetch/boot/usb_reset.sh`
