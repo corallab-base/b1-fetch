@@ -24,6 +24,22 @@ max_z: 0.35
 # body sideways). 1.0 = don't limit turning.
 side_block_yaw_scale: 1.0
 
+# Command inputs, highest priority first: the first with a fresh command
+# (newer than cmd_timeout) drives, so manual teleop overrides navigation.
+# blocked_directions: never move that way, whatever the cameras see.
+inputs:
+  - name: manual            # teleop / rostopic pub
+    topic: cmd_vel_raw
+  - name: nav               # move_base (remap its cmd_vel here)
+    topic: cmd_vel_nav
+    blocked_directions: [backward]   # no camera covers behind the robot
+
+# Directions no camera watches; shown as "not covered" in the status. The rear
+# camera looks straight down and only sees under the robot's back half: at
+# obstacle height it reaches at most 7 cm into the rear zones (2026-10-04).
+# Manual backward stays allowed (bridge cap 0.07 m/s); nav is blocked above.
+uncovered_directions: [backward]
+
 # Each source blocks its directions when its data goes stale.
 # type: counts subscribes to fetch_safety/ZoneCounts from the zone_checker_node
 # that camera.launch starts next to every camera (loading this same file), so

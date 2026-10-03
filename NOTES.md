@@ -115,6 +115,19 @@ Why: any packet carries a mode, a lying B1 stands up from a few ms of mode 1, an
   publishes /cmd_vel directly at 0.1 m/s in a clear area.
   Open: does the remote read zero when untouched/switched off (else arming trips at once)?
 
+## Rear coverage (2026-10-04, robot standing, measured on .25)
+The rear camera (88.7 deg down) sees the floor only from x -0.71 to -0.21, mostly under the
+robot. At obstacle height it reaches at most 7 cm into the rear zones (x <= -0.60), nothing
+above ~0.3 m off the floor; points in the z band are the hind legs (footprint). Hand/feet
+behind the robot never trigger. So:
+- Filter inputs (safety_filter.yaml): `manual` = /cmd_vel_raw (highest priority, backward
+  allowed, bridge cap 0.07) and `nav` = /cmd_vel_nav for move_base (backward always blocked).
+  Manual overrides nav while fresh. Status shows `backward=OK[not covered]`.
+- Proper fix (user's call, hardware): remount the rear camera ~30-40 deg down from horizontal
+  to cover ~0.6-1.5 m behind the tail, then re-solve its mount from the floor.
+- Bringup with real cameras 2026-10-04: all 4 zone_counts at 15 Hz; front/left/right react to
+  a hand; rear never does (above).
+
 ## Open issues (priority order)
 1. **Stop sending full clouds between boards**: DONE in code 2026-10-04 (zone_checker per
    camera, filter reads counts; `src/fetch_safety/test/run_tests.sh` 22/22 offline, which also

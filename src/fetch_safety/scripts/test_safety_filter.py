@@ -14,7 +14,7 @@ import rospy
 from geometry_msgs.msg import Twist
 from sensor_msgs import point_cloud2
 from sensor_msgs.msg import PointCloud2
-from std_msgs.msg import Header
+from std_msgs.msg import Header, String
 from fetch_safety.msg import ZoneCounts
 
 TOPICS = {
@@ -29,6 +29,9 @@ class Harness(object):
     def __init__(self):
         self.cloud_pubs = {k: rospy.Publisher(t, PointCloud2, queue_size=1) for k, t in TOPICS.items()}
         self.cmd_pub = rospy.Publisher('/cmd_vel_raw', Twist, queue_size=1)
+        self.nav_pub = rospy.Publisher('/cmd_vel_nav', Twist, queue_size=1)
+        self.status = ''
+        rospy.Subscriber('/safety_filter/status', String, self._on_status)
         self.lock = threading.Lock()
         self.points = {k: [] for k in TOPICS}   # points each fake camera "sees"
         self.live = set()                        # cameras currently publishing
@@ -37,6 +40,9 @@ class Harness(object):
         rospy.Subscriber('/cmd_vel', Twist, self._on_out)
         rospy.Timer(rospy.Duration(1.0 / 15), self._publish_clouds)
         self.failures = 0
+
+    def _on_status(self, msg):
+        self.status = msg.data
 
     def _on_out(self, msg):
         self.out = msg
@@ -57,13 +63,21 @@ class Harness(object):
                 self.points[k] = pts
         rospy.sleep(0.5)  # > source_timeout, lets stale/fresh state settle
 
-    def command(self, vx=0.0, vy=0.0, wz=0.0, publish=True):
+    def command(self, vx=0.0, vy=0.0, wz=0.0, publish=True, nav=None):
+        """Manual command (vx, vy, wz) and/or nav command (nav=(vx, vy, wz))."""
         if publish:
             t = Twist()
             t.linear.x, t.linear.y, t.angular.z = vx, vy, wz
+            n = Twist()
+            if nav:
+                n.linear.x, n.linear.y, n.angular.z = nav
+            manual = nav is None or (vx, vy, wz) != (0.0, 0.0, 0.0)
             end = rospy.Time.now() + rospy.Duration(0.3)
             while rospy.Time.now() < end:
-                self.cmd_pub.publish(t)
+                if manual:
+                    self.cmd_pub.publish(t)
+                if nav:
+                    self.nav_pub.publish(n)
                 rospy.sleep(0.05)
         else:
             rospy.sleep(0.8)  # > cmd_timeout
@@ -96,6 +110,13 @@ def main():
 
     h.set_scene(everyone)
     h.check('all cameras clear: passes through', h.command(0.5, 0.3, 0.2), (0.5, 0.3, 0.2))
+    h.check('status marks backward not covered', ('backward=OK[not covered]' in h.status,), (True,))
+    h.check('manual backward allowed (no rear coverage)', h.command(-0.4, 0.0), (-0.4, 0.0, 0.0))
+    rospy.sleep(0.8)
+    h.check('nav forward/sideways/turn pass', h.command(nav=(0.5, 0.3, 0.2)), (0.5, 0.3, 0.2))
+    h.check('nav backward blocked, rest kept', h.command(nav=(-0.4, 0.3, 0.2)), (0.0, 0.3, 0.2))
+    h.check('manual overrides nav', h.command(0.0, -0.2, 0.0, nav=(0.5, 0.0, 0.0)), (0.0, -0.2, 0.0))
+    rospy.sleep(0.8)
 
     h.set_scene(['left', 'right', 'rear'])
     h.check('front camera missing: forward blocked only', h.command(0.5, 0.3), (0.0, 0.3, 0.0))

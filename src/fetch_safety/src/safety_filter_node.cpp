@@ -12,6 +12,13 @@
 // (type: counts), so remote cameras send counts instead of clouds over the
 // network. Counts whose zone names don't match this node's zones are ignored
 // (the source goes stale and blocks).
+//
+// Commands come from one or more inputs in priority order (~inputs; default
+// just cmd_vel_raw): the first one with a fresh command drives, so manual
+// teleop overrides navigation. Each input can have directions it may never
+// move in (blocked_directions), e.g. navigation never reverses because no
+// camera covers the zone behind the robot (~uncovered_directions, shown in
+// the status).
 
 #include <ros/ros.h>
 #include <geometry_msgs/Twist.h>
@@ -39,6 +46,14 @@ struct Source {
   std::vector<int> zone_counts;  // points per zone in the last cloud
 };
 
+struct Input {
+  std::string name;
+  std::vector<Direction> blocked;  // never moves this way, whatever the cameras see
+  ros::Subscriber sub;
+  geometry_msgs::Twist cmd;
+  ros::Time time;  // receive time of the last command; zero = never
+};
+
 struct DirectionState {
   bool stop = false;
   double scale = 1.0;
@@ -60,6 +75,10 @@ class SafetyFilter {
 
     zones_ = loadZones(pnh);
     loadSources(pnh);
+    loadInputs(pnh);
+    std::vector<std::string> uncovered;
+    pnh.param("uncovered_directions", uncovered, uncovered);
+    for (const auto& d : uncovered) uncovered_.push_back(parseDirection(d));
 
     for (size_t i = 0; i < sources_.size(); ++i) {
       sources_[i].zone_counts.assign(zones_.size(), 0);
@@ -72,7 +91,10 @@ class SafetyFilter {
       }
     }
 
-    cmd_sub_ = nh.subscribe("cmd_vel_raw", 1, &SafetyFilter::cmdCallback, this);
+    for (size_t i = 0; i < inputs_.size(); ++i) {
+      inputs_[i].sub = nh.subscribe<geometry_msgs::Twist>(
+          topics_[i], 1, boost::bind(&SafetyFilter::cmdCallback, this, _1, i));
+    }
     cmd_pub_ = nh.advertise<geometry_msgs::Twist>("cmd_vel", 1);
     status_pub_ = pnh.advertise<std_msgs::String>("status", 1, true);
     marker_pub_ = pnh.advertise<visualization_msgs::MarkerArray>("zones", 1);
@@ -85,6 +107,29 @@ class SafetyFilter {
   }
 
  private:
+  // ~inputs: [{name, topic, blocked_directions: [...]}, ...], highest priority first
+  void loadInputs(ros::NodeHandle& pnh) {
+    XmlRpc::XmlRpcValue list;
+    if (!pnh.getParam("inputs", list)) {
+      inputs_.resize(1);
+      inputs_[0].name = "cmd_vel_raw";
+      topics_.push_back("cmd_vel_raw");
+    } else {
+      if (list.getType() != XmlRpc::XmlRpcValue::TypeArray) throw std::runtime_error("~inputs must be a list");
+      for (int i = 0; i < list.size(); ++i) {
+        XmlRpc::XmlRpcValue& in = list[i];
+        Input input;
+        input.name = static_cast<std::string>(in["name"]);
+        topics_.push_back(static_cast<std::string>(in["topic"]));
+        if (in.hasMember("blocked_directions")) {
+          XmlRpc::XmlRpcValue& dirs = in["blocked_directions"];
+          for (int d = 0; d < dirs.size(); ++d) input.blocked.push_back(parseDirection(static_cast<std::string>(dirs[d])));
+        }
+        inputs_.push_back(input);
+      }
+    }
+  }
+
   void loadSources(ros::NodeHandle& pnh) {
     XmlRpc::XmlRpcValue list;
     if (!pnh.getParam("sources", list) || list.getType() != XmlRpc::XmlRpcValue::TypeArray) {
@@ -147,6 +192,8 @@ class SafetyFilter {
     std::vector<DirectionState> states(NUM_DIRECTIONS);
     const ros::Time now = ros::Time::now();
 
+    for (Direction d : uncovered_) states[d].reasons.push_back("not covered");
+
     std::vector<int> totals(zones_.size(), 0);
     for (const Source& s : sources_) {
       const bool fresh = !s.last_update.isZero() && (now - s.last_update).toSec() <= source_timeout_;
@@ -174,12 +221,14 @@ class SafetyFilter {
     return states;
   }
 
-  geometry_msgs::Twist apply(const geometry_msgs::Twist& in, const std::vector<DirectionState>& states) const {
-    geometry_msgs::Twist out = in;
-    auto limit = [&states](double& v, Direction positive, Direction negative) {
+  geometry_msgs::Twist apply(const Input& input, const std::vector<DirectionState>& states) const {
+    geometry_msgs::Twist out = input.cmd;
+    auto limit = [&states, &input](double& v, Direction positive, Direction negative) {
       if (v == 0.0) return;
-      const DirectionState& st = states[v > 0.0 ? positive : negative];
-      v = st.stop ? 0.0 : v * st.scale;
+      const Direction d = v > 0.0 ? positive : negative;
+      const DirectionState& st = states[d];
+      const bool blocked = std::find(input.blocked.begin(), input.blocked.end(), d) != input.blocked.end();
+      v = st.stop || blocked ? 0.0 : v * st.scale;
     };
     limit(out.linear.x, FORWARD, BACKWARD);
     limit(out.linear.y, LEFT, RIGHT);
@@ -215,12 +264,30 @@ class SafetyFilter {
     ROS_INFO("safety_filter: %s", status.c_str());
   }
 
-  void cmdCallback(const geometry_msgs::Twist::ConstPtr& msg) {
-    last_cmd_ = *msg;
-    last_cmd_time_ = ros::Time::now();
+  bool fresh(const Input& input) const {
+    return !input.time.isZero() && (ros::Time::now() - input.time).toSec() <= cmd_timeout_;
+  }
+
+  // The highest-priority input with a fresh command, or -1.
+  int activeInput() const {
+    for (size_t i = 0; i < inputs_.size(); ++i) {
+      if (fresh(inputs_[i])) return static_cast<int>(i);
+    }
+    return -1;
+  }
+
+  void cmdCallback(const geometry_msgs::Twist::ConstPtr& msg, size_t index) {
+    inputs_[index].cmd = *msg;
+    inputs_[index].time = ros::Time::now();
+    const int active = activeInput();
+    if (active != static_cast<int>(index)) return;  // a higher-priority input is driving
+    if (inputs_.size() > 1 && active != last_active_) {
+      ROS_INFO("safety_filter: commands from %s", inputs_[active].name.c_str());
+      last_active_ = active;
+    }
     const auto states = computeState();
     publishStatus(states);
-    cmd_pub_.publish(apply(last_cmd_, states));
+    cmd_pub_.publish(apply(inputs_[active], states));
   }
 
   void timerCallback(const ros::TimerEvent&) {
@@ -228,17 +295,15 @@ class SafetyFilter {
     publishStatus(states);
     // Keep re-filtering the latest command so a newly seen obstacle takes
     // effect even if the command source publishes slowly. A stale command
-    // gets a single zero, then silence: the B1 bridge (a2_ros2udp) switches
-    // to walk mode on every /cmd_vel message, so streaming zeros would keep
-    // the robot stepping in place instead of letting it time out to stand.
-    const bool cmd_fresh =
-        !last_cmd_time_.isZero() && (ros::Time::now() - last_cmd_time_).toSec() <= cmd_timeout_;
-    if (cmd_fresh) {
-      cmd_pub_.publish(apply(last_cmd_, states));
+    // gets a single zero, then silence, so the bridge goes back to HOLD.
+    const int active = activeInput();
+    if (active >= 0) {
+      cmd_pub_.publish(apply(inputs_[active], states));
       idle_zero_sent_ = false;
     } else if (!idle_zero_sent_) {
       cmd_pub_.publish(geometry_msgs::Twist());
       idle_zero_sent_ = true;
+      last_active_ = -1;
     }
   }
 
@@ -294,12 +359,13 @@ class SafetyFilter {
   std::vector<Zone> zones_;
   std::vector<Source> sources_;
 
-  ros::Subscriber cmd_sub_;
+  std::vector<Input> inputs_;
+  std::vector<std::string> topics_;  // per input
+  std::vector<Direction> uncovered_;
+  int last_active_ = -1;
   ros::Publisher cmd_pub_, status_pub_, marker_pub_;
   ros::Timer timer_, marker_timer_;
 
-  geometry_msgs::Twist last_cmd_;
-  ros::Time last_cmd_time_;
   bool idle_zero_sent_ = true;  // nothing to stop before the first command
   std::string last_status_;
 };
