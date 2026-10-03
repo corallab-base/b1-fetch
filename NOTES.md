@@ -169,6 +169,12 @@ behind the robot never trigger. So:
   `timedatectl set-ntp false`. Replaces the manual `sudo date -s "$(curl ...)"` after boot.
   Installed + verified 2026-10-04: .23 -0.5 ms, .25 +0.2 ms vs .24 (NTP query). After boot,
   wait for `timedatectl` "synchronized: yes" before starting ROS.
+  Moving the server to .23 (2026-10-04, scripts ready): `sudo boot/setup_gateway.sh` on .23
+  (adds `gateway 192.168.123.165` to eth0 in /etc/network/interfaces, orig .fetch-orig; no board
+  had a persistent internet route), then `sudo boot/setup_timesync.sh` on .23 (installs chrony,
+  serves), .24 (chrony stopped, conf restored, timesyncd -> .23), .25 (timesyncd -> .23).
+- All boards' /etc/rc.local run `jetson_clocks` (CPU/GPU pinned at max clocks) and fan 255:
+  boards stay warm even idle; part of why .24 sits at ~85 C. Not changed.
 - Unitree camera autostart disabled on .23/.24/.25 (`X-GNOME-Autostart-enabled=false` in
   `~/.config/autostart/b1camera.desktop`; originals in `~/projects/fetch/backup/`).
 - `~/.config/autostart/fetch_usb_reset.desktop` on all three boards -> `~/projects/fetch/boot/usb_reset.sh`
