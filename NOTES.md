@@ -134,6 +134,11 @@ Why: any packet carries a mode, a lying B1 stands up from a few ms of mode 1, an
 - System changes outside ~/projects/fetch need approval.
 
 ## Changes made outside ~/projects/fetch (all reversible)
+- Clock sync (2026-10-04, `sudo boot/setup_timesync.sh` once per board; boards boot in 2018):
+  .24 /etc/chrony/chrony.conf: `makestep 1 -1`, `allow 192.168.123.0/24`, `local stratum 10`
+  (original in chrony.conf.fetch-orig); .23/.25 /etc/systemd/timesyncd.conf.d/fetch.conf
+  (NTP=192.168.123.24) + timesyncd enabled. Undo: restore the .fetch-orig / delete fetch.conf,
+  `timedatectl set-ntp false`. Replaces the manual `sudo date -s "$(curl ...)"` after boot.
 - Unitree camera autostart disabled on .23/.24/.25 (`X-GNOME-Autostart-enabled=false` in
   `~/.config/autostart/b1camera.desktop`; originals in `~/projects/fetch/backup/`).
 - `~/.config/autostart/fetch_usb_reset.desktop` on all three boards -> `~/projects/fetch/boot/usb_reset.sh`
