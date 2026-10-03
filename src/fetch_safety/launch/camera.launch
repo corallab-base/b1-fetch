@@ -1,8 +1,13 @@
 <launch>
-  <!-- One D430i depth camera publishing /<camera>/depth/color/points.
-       Same settings for every safety camera. required: if a camera node
-       dies, the whole bringup shuts down (and the bridge stops getting
-       commands) instead of running with a blind side. -->
+  <!-- One D430i depth camera publishing /<camera>/depth/color/points, and its
+       zone_checker counting that cloud into the safety zones on the same
+       board -> /<camera>/zone_counts, which is all the safety filter reads.
+       The cloud only crosses the network while something on another board
+       subscribes (Foxglove/RViz).
+       Same settings for every safety camera, on whichever board it is plugged
+       into. required: if a camera node or its checker dies, the whole
+       bringup shuts down (and the bridge stops getting commands) instead of
+       running with a blind side. -->
   <arg name="camera"/>
   <arg name="serial_no"/>
   <!-- 424x240 needs USB 3; the rear camera is on USB 2.1 and uses 480x270 -->
@@ -17,6 +22,9 @@
        RSUSB backend, separate processes can't enumerate each other's devices
        and both loop on "device ... is NOT found". Empty = own manager. -->
   <arg name="manager" default=""/>
+  <!-- zones and height band; must be the filter's config (the filter ignores
+       counts whose zone names don't match its own) -->
+  <arg name="safety_config" default="$(find fetch_safety)/config/safety_filter.yaml"/>
 
   <group ns="$(arg camera)">
     <include file="$(find realsense2_camera)/launch/includes/nodelet.launch.xml">
@@ -39,5 +47,10 @@
       <arg name="external_manager"          value="$(eval manager != '')"/>
       <arg name="manager"                   value="$(eval manager if manager != '' else 'realsense2_camera_manager')"/>
     </include>
+
+    <node pkg="fetch_safety" type="zone_checker_node" name="zone_checker" output="screen" required="true">
+      <rosparam command="load" file="$(arg safety_config)"/>
+      <remap from="points" to="depth/color/points"/>
+    </node>
   </group>
 </launch>

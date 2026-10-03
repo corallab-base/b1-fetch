@@ -6,73 +6,36 @@
 // enough points either stops or slows the velocity component heading toward
 // it. A source whose data goes stale blocks every direction it covers, so a
 // dead or disconnected camera fails safe.
+//
+// A source is either a cloud (type: cloud, counted here) or the per-zone
+// counts a zone_checker_node computed from a cloud on the camera's own board
+// (type: counts), so remote cameras send counts instead of clouds over the
+// network. Counts whose zone names don't match this node's zones are ignored
+// (the source goes stale and blocks).
 
 #include <ros/ros.h>
 #include <geometry_msgs/Twist.h>
+#include <fetch_safety/ZoneCounts.h>
 #include <sensor_msgs/PointCloud2.h>
 #include <std_msgs/String.h>
 #include <visualization_msgs/MarkerArray.h>
 #include <tf2_ros/transform_listener.h>
 #include <tf2_eigen/tf2_eigen.h>
-#include <Eigen/Geometry>
 #include <boost/bind.hpp>
 
-#include <algorithm>
-#include <cmath>
-#include <cstring>
 #include <sstream>
-#include <stdexcept>
-#include <string>
-#include <vector>
+
+#include "fetch_safety/zones.h"
 
 namespace fetch_safety {
-
-enum Direction { FORWARD = 0, BACKWARD, LEFT, RIGHT, NUM_DIRECTIONS };
-const char* const kDirectionNames[NUM_DIRECTIONS] = {"forward", "backward", "left", "right"};
-
-Direction parseDirection(const std::string& s) {
-  for (int d = 0; d < NUM_DIRECTIONS; ++d) {
-    if (s == kDirectionNames[d]) return static_cast<Direction>(d);
-  }
-  throw std::runtime_error("unknown direction '" + s + "' (expected forward|backward|left|right)");
-}
-
-double toDouble(XmlRpc::XmlRpcValue& v) {
-  if (v.getType() == XmlRpc::XmlRpcValue::TypeInt) return static_cast<int>(v);
-  if (v.getType() == XmlRpc::XmlRpcValue::TypeDouble) return static_cast<double>(v);
-  throw std::runtime_error("expected a number");
-}
-
-struct Zone {
-  std::string name;
-  Direction direction;
-  bool stop;              // false = slowdown
-  double slowdown_ratio;  // velocity multiplier while a slowdown zone is active
-  int min_points;
-  std::vector<Eigen::Vector2f> polygon;
-  float min_x, max_x, min_y, max_y;  // bounding box for quick rejection
-
-  bool contains(float x, float y) const {
-    if (x < min_x || x > max_x || y < min_y || y > max_y) return false;
-    bool inside = false;
-    for (size_t i = 0, j = polygon.size() - 1; i < polygon.size(); j = i++) {
-      const Eigen::Vector2f& a = polygon[i];
-      const Eigen::Vector2f& b = polygon[j];
-      if ((a.y() > y) != (b.y() > y) &&
-          x < (b.x() - a.x()) * (y - a.y()) / (b.y() - a.y()) + a.x()) {
-        inside = !inside;
-      }
-    }
-    return inside;
-  }
-};
 
 struct Source {
   std::string name;
   std::string topic;
+  bool counts;  // true: fetch_safety/ZoneCounts from a zone_checker, false: PointCloud2
   std::vector<Direction> directions;
   ros::Subscriber sub;
-  ros::Time last_update;        // receive time of last processed cloud; zero = never
+  ros::Time last_update;        // receive time of the last cloud/counts used; zero = never
   std::vector<int> zone_counts;  // points per zone in the last cloud
 };
 
@@ -95,13 +58,18 @@ class SafetyFilter {
     pnh.param("side_block_yaw_scale", side_block_yaw_scale_, 1.0);
     point_stride_ = std::max(1, point_stride_);
 
-    loadZones(pnh);
+    zones_ = loadZones(pnh);
     loadSources(pnh);
 
     for (size_t i = 0; i < sources_.size(); ++i) {
       sources_[i].zone_counts.assign(zones_.size(), 0);
-      sources_[i].sub = nh.subscribe<sensor_msgs::PointCloud2>(
-          sources_[i].topic, 1, boost::bind(&SafetyFilter::cloudCallback, this, _1, i));
+      if (sources_[i].counts) {
+        sources_[i].sub = nh.subscribe<fetch_safety::ZoneCounts>(
+            sources_[i].topic, 1, boost::bind(&SafetyFilter::countsCallback, this, _1, i));
+      } else {
+        sources_[i].sub = nh.subscribe<sensor_msgs::PointCloud2>(
+            sources_[i].topic, 1, boost::bind(&SafetyFilter::cloudCallback, this, _1, i));
+      }
     }
 
     cmd_sub_ = nh.subscribe("cmd_vel_raw", 1, &SafetyFilter::cmdCallback, this);
@@ -117,43 +85,6 @@ class SafetyFilter {
   }
 
  private:
-  void loadZones(ros::NodeHandle& pnh) {
-    XmlRpc::XmlRpcValue list;
-    if (!pnh.getParam("zones", list) || list.getType() != XmlRpc::XmlRpcValue::TypeArray) {
-      throw std::runtime_error("~zones must be a list");
-    }
-    for (int i = 0; i < list.size(); ++i) {
-      XmlRpc::XmlRpcValue& z = list[i];
-      Zone zone;
-      zone.name = static_cast<std::string>(z["name"]);
-      zone.direction = parseDirection(static_cast<std::string>(z["direction"]));
-      const std::string action = static_cast<std::string>(z["action"]);
-      if (action != "stop" && action != "slowdown") {
-        throw std::runtime_error("zone " + zone.name + ": action must be stop or slowdown");
-      }
-      zone.stop = action == "stop";
-      zone.slowdown_ratio = z.hasMember("slowdown_ratio") ? toDouble(z["slowdown_ratio"]) : 0.3;
-      zone.min_points = z.hasMember("min_points") ? static_cast<int>(z["min_points"]) : 20;
-
-      XmlRpc::XmlRpcValue& poly = z["polygon"];
-      if (poly.getType() != XmlRpc::XmlRpcValue::TypeArray || poly.size() < 3) {
-        throw std::runtime_error("zone " + zone.name + ": polygon needs at least 3 [x, y] points");
-      }
-      for (int p = 0; p < poly.size(); ++p) {
-        zone.polygon.emplace_back(toDouble(poly[p][0]), toDouble(poly[p][1]));
-      }
-      zone.min_x = zone.max_x = zone.polygon[0].x();
-      zone.min_y = zone.max_y = zone.polygon[0].y();
-      for (const auto& v : zone.polygon) {
-        zone.min_x = std::min(zone.min_x, v.x());
-        zone.max_x = std::max(zone.max_x, v.x());
-        zone.min_y = std::min(zone.min_y, v.y());
-        zone.max_y = std::max(zone.max_y, v.y());
-      }
-      zones_.push_back(zone);
-    }
-  }
-
   void loadSources(ros::NodeHandle& pnh) {
     XmlRpc::XmlRpcValue list;
     if (!pnh.getParam("sources", list) || list.getType() != XmlRpc::XmlRpcValue::TypeArray) {
@@ -164,6 +95,11 @@ class SafetyFilter {
       Source source;
       source.name = static_cast<std::string>(s["name"]);
       source.topic = static_cast<std::string>(s["topic"]);
+      const std::string type = s.hasMember("type") ? static_cast<std::string>(s["type"]) : "cloud";
+      if (type != "cloud" && type != "counts") {
+        throw std::runtime_error("source " + source.name + ": type must be cloud or counts");
+      }
+      source.counts = type == "counts";
       XmlRpc::XmlRpcValue& dirs = s["directions"];
       for (int d = 0; d < dirs.size(); ++d) {
         source.directions.push_back(parseDirection(static_cast<std::string>(dirs[d])));
@@ -185,44 +121,25 @@ class SafetyFilter {
       return;
     }
     const auto tf = tf2::transformToEigen(tf_msg);
-    const Eigen::Matrix3f R = tf.linear().cast<float>();
-    const Eigen::Vector3f t = tf.translation().cast<float>();
-
-    int ox = -1, oy = -1, oz = -1;
-    for (const auto& f : msg->fields) {
-      if (f.datatype != sensor_msgs::PointField::FLOAT32) continue;
-      if (f.name == "x") ox = f.offset;
-      if (f.name == "y") oy = f.offset;
-      if (f.name == "z") oz = f.offset;
-    }
-    if (ox < 0 || oy < 0 || oz < 0) {
-      ROS_WARN_THROTTLE(2.0, "safety_filter: [%s] cloud has no float32 x/y/z", source.name.c_str());
+    std::string error;
+    if (!countZones(*msg, tf.linear().cast<float>(), tf.translation().cast<float>(), zones_, min_z_, max_z_,
+                    point_stride_, source.zone_counts, error)) {
+      ROS_WARN_THROTTLE(2.0, "safety_filter: [%s] %s", source.name.c_str(), error.c_str());
       return;
     }
-    if (msg->height > 0 && msg->width > 0 &&
-        msg->data.size() < (msg->height - 1) * size_t(msg->row_step) + msg->width * size_t(msg->point_step)) {
-      ROS_WARN_THROTTLE(2.0, "safety_filter: [%s] malformed cloud", source.name.c_str());
+    source.last_update = ros::Time::now();
+  }
+
+  void countsCallback(const fetch_safety::ZoneCounts::ConstPtr& msg, size_t index) {
+    Source& source = sources_[index];
+    bool match = msg->zones.size() == zones_.size() && msg->counts.size() == zones_.size();
+    for (size_t k = 0; match && k < zones_.size(); ++k) match = msg->zones[k] == zones_[k].name;
+    if (!match) {
+      ROS_WARN_THROTTLE(2.0, "safety_filter: [%s] zone_counts zones don't match this filter's zones "
+                        "(zone_checker running an old config?); ignoring them", source.name.c_str());
       return;
     }
-
-    std::vector<int> counts(zones_.size(), 0);
-    const size_t n = size_t(msg->width) * msg->height;
-    for (size_t i = 0; i < n; i += point_stride_) {
-      const uint8_t* p = &msg->data[(i / msg->width) * msg->row_step + (i % msg->width) * msg->point_step];
-      float x, y, z;
-      std::memcpy(&x, p + ox, sizeof(float));
-      std::memcpy(&y, p + oy, sizeof(float));
-      std::memcpy(&z, p + oz, sizeof(float));
-      if (!std::isfinite(x) || !std::isfinite(y) || !std::isfinite(z)) continue;
-
-      const Eigen::Vector3f q = R * Eigen::Vector3f(x, y, z) + t;
-      if (q.z() < min_z_ || q.z() > max_z_) continue;
-      for (size_t k = 0; k < zones_.size(); ++k) {
-        if (zones_[k].contains(q.x(), q.y())) ++counts[k];
-      }
-    }
-
-    source.zone_counts.swap(counts);
+    source.zone_counts.assign(msg->counts.begin(), msg->counts.end());
     source.last_update = ros::Time::now();
   }
 

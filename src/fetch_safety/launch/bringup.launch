@@ -3,13 +3,16 @@
          source ~/projects/fetch/env.sh
          roslaunch fetch_safety bringup.launch
        roslaunch starts roscore if none is running, and starts the front and
-       rear cameras on .23/.25 over SSH (key auth; env-loader sets ROS_IP).
+       rear cameras on .23/.25 over SSH (key auth; env-loader remote_env.sh).
+       Each camera runs with its zone_checker on its own board (camera.launch);
+       only per-zone counts reach the filter. Deploy code to all boards with
+       ~/projects/fetch/deploy.sh first.
        Every camera is required: if any fails, the whole bringup stops.
        The B1 bridge is NOT started here: stand the robot up first, then
        launch it separately. -->
   <arg name="base_frame" default="base_link"/>
   <!-- Downward front camera (.23). Off by default: its mount pitch is still a
-       placeholder, and its cloud is another ~150-195 Mbit/s over the network. -->
+       placeholder. -->
   <arg name="front_down" default="false"/>
 
   <!-- Left / right (.24) -->

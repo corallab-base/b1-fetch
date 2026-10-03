@@ -1,11 +1,9 @@
 #!/usr/bin/env python
-"""Offline check of safety_filter_node using synthetic clouds (no cameras).
-
-Run with the node already up on the default config:
-  roslaunch fetch_safety safety_filter.launch
-  rosrun fetch_safety test_safety_filter.py
-
-Clouds are published in base_link directly, so no TF is needed.
+"""Offline check of safety_filter_node + zone_checker_node using synthetic
+clouds (no cameras). Run everything with:
+  src/fetch_safety/test/run_tests.sh
+(test_safety.launch: filter without front_down, one zone_checker per fake
+camera). Clouds are published in base_link directly, so no TF is needed.
 """
 from __future__ import print_function
 
@@ -17,11 +15,13 @@ from geometry_msgs.msg import Twist
 from sensor_msgs import point_cloud2
 from sensor_msgs.msg import PointCloud2
 from std_msgs.msg import Header
+from fetch_safety.msg import ZoneCounts
 
 TOPICS = {
     'left': '/cam_left/depth/color/points',
     'right': '/cam_right/depth/color/points',
     'front': '/cam_front/depth/color/points',
+    'rear': '/cam_rear/depth/color/points',
 }
 
 
@@ -86,23 +86,31 @@ def main():
     rospy.init_node('test_safety_filter')
     h = Harness()
     rospy.sleep(1.0)
-    everyone = ['left', 'right', 'front']
+    everyone = ['left', 'right', 'front', 'rear']
 
     h.set_scene([])
-    h.check('no cameras: forward/left/right blocked, backward ok',
+    h.check('no cameras: every direction blocked, turning kept',
             h.command(0.5, 0.3, 0.2), (0.0, 0.0, 0.2))
-    h.check('no cameras: backward + right',
-            h.command(-0.4, -0.3), (-0.4, 0.0, 0.0))
+    h.check('no cameras: backward + right blocked',
+            h.command(-0.4, -0.3), (0.0, 0.0, 0.0))
 
     h.set_scene(everyone)
     h.check('all cameras clear: passes through', h.command(0.5, 0.3, 0.2), (0.5, 0.3, 0.2))
 
-    h.set_scene(['left', 'right'])
+    h.set_scene(['left', 'right', 'rear'])
     h.check('front camera missing: forward blocked only', h.command(0.5, 0.3), (0.0, 0.3, 0.0))
+    h.check('front camera missing: backward ok', h.command(-0.4, 0.0), (-0.4, 0.0, 0.0))
+
+    h.set_scene(['left', 'right', 'front'])
+    h.check('rear camera missing: backward blocked only', h.command(-0.4, 0.3), (0.0, 0.3, 0.0))
 
     h.set_scene(everyone, {'front': blob(0.8, 0.0)})
     h.check('obstacle in front_stop: vx zeroed, vy kept', h.command(0.5, -0.3), (0.0, -0.3, 0.0))
     h.check('obstacle in front_stop: reversing allowed', h.command(-0.5, 0.0), (-0.5, 0.0, 0.0))
+
+    h.set_scene(everyone, {'rear': blob(-0.8, 0.0)})
+    h.check('obstacle in rear_stop: vx<0 zeroed', h.command(-0.4, 0.0), (0.0, 0.0, 0.0))
+    h.check('obstacle in rear_stop: forward allowed', h.command(0.4, 0.0), (0.4, 0.0, 0.0))
 
     h.set_scene(everyone, {'front': blob(1.3, 0.0)})
     h.check('obstacle in front_slow: vx scaled 0.3', h.command(0.5, 0.0), (0.15, 0.0, 0.0))
@@ -122,6 +130,17 @@ def main():
 
     h.set_scene(everyone, {'left': blob(0.0, 0.1)})
     h.check('points inside footprint (no zone): ignored', h.command(0.5, 0.3), (0.5, 0.3, 0.0))
+
+    # counts from a checker with a different zone config are ignored -> stale
+    h.set_scene(['left', 'right', 'rear'])
+    bad = rospy.Publisher('/cam_front/zone_counts', ZoneCounts, queue_size=1)
+    rospy.sleep(1.0)
+    end = rospy.Time.now() + rospy.Duration(0.6)
+    while rospy.Time.now() < end:
+        bad.publish(ZoneCounts(zones=['old_zone'], counts=[0]))
+        rospy.sleep(0.05)
+    h.check('counts with mismatched zone names: forward stays blocked', h.command(0.5, 0.0), (0.0, 0.0, 0.0))
+    bad.unregister()
 
     h.set_scene(everyone)
     h.command(0.5, 0.3)

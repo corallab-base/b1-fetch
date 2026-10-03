@@ -1,1 +1,0 @@
-/usr/bin/c++  -O3 -DNDEBUG  -rdynamic CMakeFiles/b1_stand_down.dir/src/b1_stand_down.cpp.o  -o /home/unitree/projects/fetch/devel/lib/fetch_b1_bridge/b1_stand_down  -L/home/unitree/UnitreeSLAM/sdk/unitree_legged_sdk-3.8.3/lib/cpp/arm64 -Wl,-rpath,/home/unitree/UnitreeSLAM/sdk/unitree_legged_sdk-3.8.3/lib/cpp/arm64: -lunitree_legged_sdk -pthread 

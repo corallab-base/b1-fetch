@@ -1,8 +1,0 @@
-prefix=/home/unitree/projects/fetch/devel
-
-Name: fetch_safety
-Description: Description of fetch_safety
-Version: 0.1.0
-Cflags: 
-Libs: -L${prefix}/lib 
-Requires: 

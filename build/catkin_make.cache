@@ -1,2 +1,0 @@
-fetch_b1_bridge:fetch_safety
--DCATKIN_DEVEL_PREFIX=/home/unitree/projects/fetch/devel -DCMAKE_INSTALL_PREFIX=/home/unitree/projects/fetch/install -G Unix Makefiles

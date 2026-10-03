@@ -1,0 +1,32 @@
+<launch>
+  <!-- Filter + one zone_checker per fake camera, as bringup runs them but
+       without cameras: test_safety_filter.py publishes the clouds in
+       base_link. Default sources without front_down. -->
+  <include file="$(find fetch_safety)/launch/safety_filter.launch">
+    <arg name="front_down" value="false"/>
+  </include>
+  <group ns="cam_left">
+    <node pkg="fetch_safety" type="zone_checker_node" name="zone_checker" required="true">
+      <rosparam command="load" file="$(find fetch_safety)/config/safety_filter.yaml"/>
+      <remap from="points" to="depth/color/points"/>
+    </node>
+  </group>
+  <group ns="cam_right">
+    <node pkg="fetch_safety" type="zone_checker_node" name="zone_checker" required="true">
+      <rosparam command="load" file="$(find fetch_safety)/config/safety_filter.yaml"/>
+      <remap from="points" to="depth/color/points"/>
+    </node>
+  </group>
+  <group ns="cam_front">
+    <node pkg="fetch_safety" type="zone_checker_node" name="zone_checker" required="true">
+      <rosparam command="load" file="$(find fetch_safety)/config/safety_filter.yaml"/>
+      <remap from="points" to="depth/color/points"/>
+    </node>
+  </group>
+  <group ns="cam_rear">
+    <node pkg="fetch_safety" type="zone_checker_node" name="zone_checker" required="true">
+      <rosparam command="load" file="$(find fetch_safety)/config/safety_filter.yaml"/>
+      <remap from="points" to="depth/color/points"/>
+    </node>
+  </group>
+</launch>

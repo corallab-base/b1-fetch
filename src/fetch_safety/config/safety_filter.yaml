@@ -25,28 +25,39 @@ max_z: 0.35
 side_block_yaw_scale: 1.0
 
 # Each source blocks its directions when its data goes stale.
+# type: counts subscribes to fetch_safety/ZoneCounts from the zone_checker_node
+# that camera.launch starts next to every camera (loading this same file), so
+# clouds never cross the network to the filter and the filter can run on any
+# board. type: cloud (default) subscribes to a PointCloud2 and counts it here
+# (tests, or a camera without a checker). The clouds are still published for
+# Foxglove/RViz and only cross the network while something subscribes.
 sources:
   - name: left_cam
-    topic: /cam_left/depth/color/points
+    topic: /cam_left/zone_counts   # counted on the camera's board (zone_checker_node)
+    type: counts
     directions: [left]
   - name: right_cam
-    topic: /cam_right/depth/color/points
+    topic: /cam_right/zone_counts   # counted on the camera's board (zone_checker_node)
+    type: counts
     directions: [right]
   # Front camera on the .23 NX. Until it publishes, forward stays blocked.
   # (safety_filter.launch front_camera:=false drops it for bench testing.)
   - name: front_cam
-    topic: /cam_front/depth/color/points
+    topic: /cam_front/zone_counts   # counted on the camera's board (zone_checker_node)
+    type: counts
     directions: [forward]
   # Downward front camera (.23): covers the near-front floor the forward
   # camera can't see. Either front camera seeing something blocks forward.
   - name: front_down_cam
-    topic: /cam_front_down/depth/color/points
+    topic: /cam_front_down/zone_counts   # counted on the camera's board (zone_checker_node)
+    type: counts
     directions: [forward]
   # Rear (tail) camera on the .25 NX. Looks straight DOWN: it only sees the
   # floor from x -0.74 to -0.18, i.e. ~0.18 m past the rear of the body.
   # The rear zones below are therefore only observed up to x ~ -0.74.
   - name: rear_cam
-    topic: /cam_rear/depth/color/points
+    topic: /cam_rear/zone_counts   # counted on the camera's board (zone_checker_node)
+    type: counts
     directions: [backward]
 
 # Zones are checked against points from all fresh sources. action: stop zeroes

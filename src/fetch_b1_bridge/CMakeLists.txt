@@ -11,8 +11,12 @@ catkin_package()
 set(UNITREE_SDK_DIR "$ENV{HOME}/UnitreeSLAM/sdk/unitree_legged_sdk-3.8.3"
     CACHE PATH "unitree_legged_sdk 3.8.3 root")
 set(UNITREE_SDK_LIB "${UNITREE_SDK_DIR}/lib/cpp/arm64/libunitree_legged_sdk.so")
+# The same workspace is built on every board, but only boards with the SDK
+# get the bridge programs (the bridge runs on one board, .24 today).
 if(NOT EXISTS "${UNITREE_SDK_LIB}")
-  message(FATAL_ERROR "unitree_legged_sdk not found at ${UNITREE_SDK_LIB} (set -DUNITREE_SDK_DIR=...)")
+  message(WARNING "unitree_legged_sdk not found at ${UNITREE_SDK_LIB}: not building the B1 bridge on this board")
+  install(DIRECTORY launch DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION})
+  return()
 endif()
 
 include_directories(${catkin_INCLUDE_DIRS} ${UNITREE_SDK_DIR}/include)

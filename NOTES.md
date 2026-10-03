@@ -13,6 +13,23 @@ Shutdown: Ctrl+C pub -> `rosservice call /b1_bridge/disarm` -> Ctrl+C bridge -> 
 
 > **Do not use this with the robot standing until the open issues below are fixed.**
 
+## Code on the boards (since 2026-10-04)
+- One git repo, same code everywhere: GitHub origin (https://github.com/MahitMehta/fetch-unitree,
+  pushed/pulled from .24 only; .24 has no stored GitHub login, the user pushes) -> .24 ->
+  `./deploy.sh` pushes HEAD to ~/projects/fetch on .23/.25 over SSH (they have no internet)
+  and runs catkin_make there. Commit before deploying. Never edit on .23/.25 directly
+  (the push refuses if their checkout has local changes).
+- build/, devel/, logs, bags are not in git; each board builds its own workspace.
+- `env.sh` works on any board (ROS_IP auto-detected, master .24 unless FETCH_MASTER_URI is set);
+  `remote_env.sh` is the roslaunch env-loader for nodes started on other boards.
+- Per-board differences left: Unitree SDK only on .24 (fetch_b1_bridge skips its programs
+  elsewhere, so the bridge can only run on .24); realsense-ros 2.3.2 is in src/ on .23/.25
+  (ignored by git) but in ~/realsense_ws on .24. ~/.bashrc on .24 also sets ROS_IP/master.
+- Every camera has a zone_checker on its own board (camera.launch) publishing
+  /<cam>/zone_counts; the filter only reads those, so it (and later move_base) can run
+  on any board. Clouds are still published for Foxglove and only cross the network
+  while someone subscribes.
+
 ## Layout
 | Board | Cameras (serial) | Role |
 |---|---|---|
@@ -47,9 +64,6 @@ Log review (2026-10-01, ~/.ros/log 67d474c8 / c711a900):
 - front_down camera off by default (`front_down:=false`; filter loads sources_no_front_down.yaml).
 - All cameras use realsense decimation (2x2): max ~49 Mbit/s per cloud (rear ~62) instead of ~195/249.
   Filter point_stride 2 -> 1. Not yet tested on hardware.
-- test_safety_filter.py only fakes left/right/front clouds: with rear/front_down in the default
-  sources it fails 8 cases (stale sources block forward/backward). Passes 15/15 with only those
-  3 sources loaded. The test needs updating.
 
 ## Bridge behaviour (since 2026-10-03: arm/disarm)
 Why: any packet carries a mode, a lying B1 stands up from a few ms of mode 1, and
@@ -90,6 +104,9 @@ Why: any packet carries a mode, a lying B1 stands up from a few ms of mode 1, an
     yaw commands. 0.3 cmd -> ~0.2-0.25. move_base: min rotation >= 0.2 rad/s, rely on closed loop.
   - Backward: cap 0.1, but odom shows 0.11-0.17 m/s (0.418 m in 3.7 s, 0.538 m in 4.8 s):
     the robot overshoots backward commands. Rear camera sees only 0.18 m past the tail.
+  - The robot's position is its own body velocity integrated with its own IMU yaw (bag: 0.22 m
+    apart after ~6 m of walking). So no EKF yet: fusing /odom with the bridge IMU adds nothing.
+    Add robot_localization when an independent source exists (ICP/visual odom, D430i IMU).
 - First real test (robot STANDING via remote, user runs it): arm, check HOLD and
   /odom; walk a measured 1-2 m straight and a 360 deg turn, compare /odom
   (position may be in an unknown frame / reset at boot; velocity is body frame per comm.h;
@@ -99,9 +116,10 @@ Why: any packet carries a mode, a lying B1 stands up from a few ms of mode 1, an
   Open: does the remote read zero when untouched/switched off (else arming trips at once)?
 
 ## Open issues (priority order)
-1. **Stop sending full clouds between boards**: run the zone check on each camera
-   board and send only per-zone point counts; keep a decimated/low-rate cloud
-   (or compressedDepth image) for Foxglove, sent only when viewed.
+1. **Stop sending full clouds between boards**: DONE in code 2026-10-04 (zone_checker per
+   camera, filter reads counts; `src/fetch_safety/test/run_tests.sh` 22/22 offline, which also
+   fixed the old 8 rear/front_down failures). Not yet run with real cameras. 4 cameras measured
+   well below 100 Mbit/s by the user even before this, so no separate congestion check.
 2. **Harden the bridge**: DONE in code (arm/disarm 2026-10-03) except real-time
    priority (needs setcap/sudo, not approved). Not yet run against the real robot
    -> see "Bridge behaviour" above.

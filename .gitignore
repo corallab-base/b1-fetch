@@ -1,0 +1,11 @@
+# catkin build output: each board builds its own
+/build/
+/devel/
+/install/
+build.log
+# runtime data
+*.log
+/bags/
+# third-party source built in place on some boards (realsense-ros 2.3.2;
+# .24 uses ~/realsense_ws instead)
+/src/realsense-ros/

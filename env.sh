@@ -1,9 +1,10 @@
-# Source in every terminal on this board (.24) before using the fetch stack:
+# Source in every terminal before using the fetch stack, on any board:
 #   source ~/projects/fetch/env.sh
 #
-# All three NX boards share the hostname "nx", so ROS must advertise IPs, and
-# the master URI must be this board's IP (roslaunch hands it to .23/.25).
+# All NX boards share the hostname "nx", so ROS must advertise IPs: ROS_IP is
+# this board's 192.168.123.x address. The master runs on .24 unless
+# FETCH_MASTER_URI says otherwise (roslaunch hands it to the other boards).
 source ~/projects/fetch/devel/setup.bash
-export ROS_IP=192.168.123.24
-export ROS_MASTER_URI=http://192.168.123.24:11311
+export ROS_IP=$(hostname -I | tr ' ' '\n' | grep -m1 '^192\.168\.123\.')
+export ROS_MASTER_URI=${FETCH_MASTER_URI:-http://192.168.123.24:11311}
 unset ROS_HOSTNAME

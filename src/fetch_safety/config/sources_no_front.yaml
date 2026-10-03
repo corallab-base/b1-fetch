@@ -3,11 +3,14 @@
 # Loaded by: roslaunch fetch_safety safety_filter.launch front_camera:=false
 sources:
   - name: left_cam
-    topic: /cam_left/depth/color/points
+    topic: /cam_left/zone_counts   # counted on the camera's board (zone_checker_node)
+    type: counts
     directions: [left]
   - name: right_cam
-    topic: /cam_right/depth/color/points
+    topic: /cam_right/zone_counts   # counted on the camera's board (zone_checker_node)
+    type: counts
     directions: [right]
   - name: rear_cam
-    topic: /cam_rear/depth/color/points
+    topic: /cam_rear/zone_counts   # counted on the camera's board (zone_checker_node)
+    type: counts
     directions: [backward]
