@@ -24,8 +24,9 @@ L2+A or `b1_stand_down` -> Ctrl+C bringup -> power off.
 - `env.sh` works on any board (ROS_IP auto-detected, master .23 unless FETCH_MASTER_URI is set);
   `remote_env.sh` is the roslaunch env-loader for nodes started on other boards.
 - Unitree legged_sdk 3.8.3 (BSD-3, headers + arm64 lib) is in third_party/, so the bridge
-  builds on every board. `.23` has an SSH key (ed25519) authorized on .24/.25 (2026-10-04), so
-  bringup can be launched from .23; .24 also reaches .23/.25.
+  builds on every board. `.23` has SSH keys authorized on .24/.25 (2026-10-04), so
+  bringup can be launched from .23; .24 also reaches .23/.25. roslaunch logs in with paramiko
+  2.0.0, which can't use ed25519 keys: the RSA key (~/.ssh/id_rsa) is the one it needs.
 - Per-board differences left: realsense-ros 2.3.2 is in src/ on .23/.25
   (ignored by git) but in ~/realsense_ws on .24. ~/.bashrc on .24 also sets ROS_IP/master.
 - Every camera has a zone_checker on its own board (camera.launch) publishing
