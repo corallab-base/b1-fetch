@@ -3,7 +3,7 @@ project(fetch_b1_bridge)
 
 add_compile_options(-std=c++14 -O2)
 
-find_package(catkin REQUIRED COMPONENTS roscpp geometry_msgs std_msgs)
+find_package(catkin REQUIRED COMPONENTS roscpp geometry_msgs std_msgs std_srvs nav_msgs sensor_msgs tf2_ros)
 catkin_package()
 
 # Unitree's SDK is used in place (not copied): the same 3.8.3 build that

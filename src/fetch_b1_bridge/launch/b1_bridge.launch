@@ -1,8 +1,12 @@
 <launch>
   <!-- /cmd_vel -> B1. Run only one bridge at a time: stop a2_ros2udp/ros_control
-       (and any Unitree SLAM launch that starts it) before launching this. -->
+       (and any Unitree SLAM launch that starts it) before launching this.
+       Starts DISARMED (sends nothing). With the robot standing:
+         rosservice call /b1_bridge/arm      rosservice call /b1_bridge/disarm -->
   <!-- mode sent with no command: 0 idle stand (Unitree example), 1 balance stand -->
   <arg name="idle_mode" default="0"/>
+  <!-- false when an EKF publishes odom -> base_link -->
+  <arg name="publish_tf" default="true"/>
 
   <node pkg="fetch_b1_bridge" type="b1_bridge_node" name="b1_bridge" output="screen" required="true">
     <param name="target_ip"   value="192.168.123.220"/>
@@ -12,16 +16,22 @@
     <param name="idle_mode"   value="$(arg idle_mode)"/>
     <!-- hard speed caps (m/s, rad/s), applied after the safety filter -->
     <param name="max_vx"      value="0.3"/>
-    <!-- backward: the rear camera only sees ~0.18 m past the tail -->
-    <param name="max_vx_back" value="0.1"/>
+    <!-- backward: the rear camera only sees ~0.18 m past the tail, and the robot
+         overshoots backward commands (0.1 -> 0.11-0.17 m/s, 2026-10-04) -->
+    <param name="max_vx_back" value="0.07"/>
     <param name="max_vy"      value="0.2"/>
     <param name="max_wz"      value="0.5"/>
-    <!-- The bridge only sends while commanding (see b1_bridge_node.cpp) and
+    <!-- While armed the bridge sends every cycle (see b1_bridge_node.cpp) and
          stops for good (node exits) on any of these. -->
-    <param name="settle_time"     value="1.0"/>  <!-- s of idle_mode after /cmd_vel stops, then silent -->
+    <param name="settle_time"     value="1.0"/>  <!-- s of standing still after ~disarm, then silent -->
     <param name="state_timeout"   value="0.2"/>  <!-- s without robot state while sending -->
     <param name="min_body_height" value="0.40"/> <!-- reported height: ~0.55 standing, ~0.07 lying -->
     <param name="watch_remote"    value="true"/> <!-- any Unitree remote button/stick -->
     <param name="max_loop_gap"    value="0.02"/> <!-- s, logs a warning above this -->
+    <!-- /odom, ~imu and TF odom -> base_link from the robot's own estimate, while armed -->
+    <param name="odom_frame" value="odom"/>
+    <param name="base_frame" value="base_link"/>
+    <param name="odom_rate"  value="50.0"/>
+    <param name="publish_tf" value="$(arg publish_tf)"/>
   </node>
 </launch>

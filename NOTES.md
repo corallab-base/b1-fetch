@@ -5,10 +5,11 @@
 source ~/projects/fetch/env.sh                       # every terminal
 roslaunch fetch_safety bringup.launch                # 4 cameras (.24/.23/.25 over SSH) + safety filter; front_down:=true adds the 5th
 ~/projects/fetch/devel/lib/fetch_b1_bridge/b1_stand_up
-roslaunch fetch_b1_bridge b1_bridge.launch idle_mode:=1
+roslaunch fetch_b1_bridge b1_bridge.launch idle_mode:=1   # starts DISARMED, sends nothing
+rosservice call /b1_bridge/arm                             # ONLY after checking the robot stands
 rostopic pub -r 10 /cmd_vel_raw geometry_msgs/Twist '{linear: {x: 0.0, y: 0.1, z: 0.0}}'   # always /cmd_vel_raw
 ```
-Shutdown: Ctrl+C pub -> Ctrl+C bridge -> `b1_stand_down` -> Ctrl+C bringup -> power off.
+Shutdown: Ctrl+C pub -> `rosservice call /b1_bridge/disarm` -> Ctrl+C bridge -> `b1_stand_down` -> Ctrl+C bringup -> power off.
 
 > **Do not use this with the robot standing until the open issues below are fixed.**
 
@@ -50,39 +51,60 @@ Log review (2026-10-01, ~/.ros/log 67d474c8 / c711a900):
   sources it fails 8 cases (stale sources block forward/backward). Passes 15/15 with only those
   3 sources loaded. The test needs updating.
 
-## Bridge behaviour (since 2026-10-01)
-- Silent until /cmd_vel arrives. CHECK: sends idle_mode until the robot answers
-  standing (usually 1 packet), then WALK. After /cmd_vel stops: 1 s of idle_mode, then silent.
-- Stops for good (sends nothing more, node exits with an ERROR line) on: reported
-  mode 5/7, body height < 0.40, no state for 0.2 s while sending, any Unitree remote
-  button/stick, ROS master lost/restarted. Restart the bridge to resume.
-- Logs mode changes, loop gaps > 20 ms, and a 10 s summary (sent/received, worst
-  gap, UDP errors) to rosout. First localhost run already showed a 46 ms gap on .24
-  with bringup running.
-- Open questions for the first real test (robot LYING, user runs it):
-  1. Does the remote's data read as zero when untouched / switched off, or does it
-     trip the remote check at once?
-  2. ANSWERED 2026-10-01: .220 sends state only in reply (received 0 while QUIET,
-     also during remote L2+A up/down). So the remote is only watched while sending,
-     and CHECK's 1-2 packets can't be avoided. Remote L2+A stand/lie worked with
-     the bridge running QUIET (sent 0).
-  3. ANSWERED 2026-10-01, BAD: zero /cmd_vel_raw with robot lying -> CHECK sent ~2
-     mode-1 packets (4 ms until the reply), bridge stopped on "mode 7", but the robot
-     STOOD UP anyway: a lying B1 completes a stand-up from a few ms of mode 1.
-     Any packet carries a mode, and state only comes back in reply, so CHECK can't
-     be made safe. Proposed redesign (not yet approved): start disarmed, arm by
-     explicit service call with robot standing, then send continuously and exit on
-     remote use / height / mode 5,7 / no state / master loss.
-  4. Does L2+B still work while the bridge is sending? (It should also stop the bridge.)
+## Bridge behaviour (since 2026-10-03: arm/disarm)
+Why: any packet carries a mode, a lying B1 stands up from a few ms of mode 1, and
+.220 only sends state in reply, so the bridge can't check standing before sending
+(2026-10-01 real test: CHECK's 2 packets stood a lying robot up). A person checks.
+- Starts DISARMED: sends nothing, /cmd_vel ignored (warning). `~arm` (std_srvs/Trigger)
+  -> ARMING: idle_mode until the robot answers; answer lying/damping/low -> stop
+  (2 packets reach the robot in the fake test, so arming a LYING robot can still stand it up).
+- Armed: sends every cycle: HOLD (idle_mode, zero velocity) or WALK (mode 2) on
+  /cmd_vel received after arming. `~disarm` -> 1 s idle_mode -> DISARMED (re-armable).
+- Stops for good (node exits) on: mode 5/7, body height < 0.40, no state for 0.2 s,
+  any Unitree remote button/stick, ROS master lost/restarted (disarms first).
+- While armed publishes /odom + TF odom->base_link (robot's own position estimate,
+  IMU quaternion, z = body height so the floor is z=0) and ~imu at 50 Hz, ~armed (latched).
+  `publish_tf:=false` when an EKF takes over odom->base_link.
+- **Stopping = mode 2 at zero velocity, not idle_mode.** 2026-10-03 real test
+  (bags/odom_test1.bag): after turning at 0.3 rad/s, HOLD sent mode 1 for 12 s and the
+  robot stayed in mode 2 turning at ~0.25 rad/s. The B1 ignores idle modes while walking
+  and latches the last mode-2 velocity. Fixed: zero-velocity packets use mode 2 while the
+  robot reports mode 2 (HOLD, DISARMING, Ctrl+C, and a 0.1 s burst on "no state");
+  ERROR logged if the robot still moves 2 s into HOLD/DISARMING. Fake robot now latches too.
+  Faults on height / mode 5,7 / remote still go silent at once (robot down or remote in charge).
+  ANSWERED 2026-10-03: the B1 stops at once when packets stop entirely (user: Ctrl+C on the
+  bridge, which sent 0.1 s of mode 1 then nothing, stopped the turn immediately). So silent
+  fault exits do stop a walking robot; it's a steady stream of non-walk packets that keeps it going.
+- Passed 16 localhost scenarios 2026-10-03 (`src/fetch_b1_bridge/test/test_bridge.sh`).
+  Real robot 2026-10-03/04 (bags/odom_test1.bag, 28 min, 20 walks; first bag overwritten):
+  fix works: every stop reached |v|<0.03, |w|<0.05 within 0.05-0.5 s of WALK->HOLD (plus
+  cmd_timeout 0.5 s after the last /cmd_vel), no "still moving" errors; ~0.8 s after zero
+  velocity the robot switches itself back to mode 1. 2 loop gaps > 20 ms (max 25 ms), CRC errors 0-27/10 s.
+- Odometry (robot's own estimate, body frame per walk):
+  - +x is forward (user confirmed). Forward 0.1 m/s: odom 0.589 m vs ~0.572 m by eye (+3-5%).
+  - Lateral: odom shows a steady drift right (~-0.01 m/s reported vy while walking; 0.6 m
+    forward -> 0.11 m right) but the user saw only 1-2 in -> the estimate's vy is biased;
+    give vy low trust in the EKF. Every walk also gets ~3 cm right in start/stop.
+  - Yaw: at 0.1 rad/s commanded the robot turned at ~0.05 (121 s -> 351 deg, user agreed
+    "a little short of 360"), so the IMU yaw is right and the robot under-turns at low
+    yaw commands. 0.3 cmd -> ~0.2-0.25. move_base: min rotation >= 0.2 rad/s, rely on closed loop.
+  - Backward: cap 0.1, but odom shows 0.11-0.17 m/s (0.418 m in 3.7 s, 0.538 m in 4.8 s):
+    the robot overshoots backward commands. Rear camera sees only 0.18 m past the tail.
+- First real test (robot STANDING via remote, user runs it): arm, check HOLD and
+  /odom; walk a measured 1-2 m straight and a 360 deg turn, compare /odom
+  (position may be in an unknown frame / reset at boot; velocity is body frame per comm.h;
+  IMU assumed aligned with the body). Lie down with L2+A (not L2+B: damping drops the
+  robot); any remote button also stops the bridge. No bringup -> no safety filter: this test
+  publishes /cmd_vel directly at 0.1 m/s in a clear area.
+  Open: does the remote read zero when untouched/switched off (else arming trips at once)?
 
 ## Open issues (priority order)
 1. **Stop sending full clouds between boards**: run the zone check on each camera
    board and send only per-zone point counts; keep a decimated/low-rate cloud
    (or compressedDepth image) for Foxglove, sent only when viewed.
-2. **Harden the bridge**: DONE in code 2026-10-01 except real-time priority (needs
-   setcap/sudo, not approved). Passed 12 localhost scenarios
-   (`src/fetch_b1_bridge/test/test_bridge.sh`, fake robot on 127.0.0.1). Not yet
-   run against the real robot -> see "Bridge behaviour" below.
+2. **Harden the bridge**: DONE in code (arm/disarm 2026-10-03) except real-time
+   priority (needs setcap/sudo, not approved). Not yet run against the real robot
+   -> see "Bridge behaviour" above.
 3. Solve the **front_down camera mount** (placeholder pitch 0.82 in bringup.launch)
    from the floor plane with the robot standing — only after 1 and 2.
 4. .24 overheating (84-91 C, throttle alerts); fans spin (no tachometer).
@@ -104,6 +126,6 @@ Log review (2026-10-01, ~/.ros/log 67d474c8 / c711a900):
 
 ## Verified
 - Filter offline tests (15/15), side mounts (floor -0.55..-0.58), front mount (level), rear mount (floor -0.575).
-- Bridge: levelFlag 0xee, caps vx 0.3 / back 0.1 / vy 0.2 / wz 0.5, idle_mode, stand-on-timeout (localhost tests).
+- Bridge: levelFlag 0xee, caps vx 0.3 / back 0.07 (was 0.1) / vy 0.2 / wz 0.5, idle_mode, stand-on-timeout (localhost tests).
 - Robot walks via /cmd_vel_raw -> filter -> bridge (user confirmed).
 - One nodelet manager per board fixes "device NOT found" when two cameras share a board.

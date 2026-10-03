@@ -2,7 +2,7 @@
 <package format="2">
   <name>fetch_b1_bridge</name>
   <version>0.1.0</version>
-  <description>Sends /cmd_vel to the B1 high-level controller over unitree_legged_sdk 3.8.3 and publishes the robot's reported state.</description>
+  <description>Sends /cmd_vel to the B1 high-level controller over unitree_legged_sdk 3.8.3 once armed, and publishes the robot's reported state, odometry and IMU.</description>
   <maintainer email="mahit.py@gmail.com">unitree</maintainer>
   <license>Proprietary</license>
 
@@ -11,4 +11,8 @@
   <depend>roscpp</depend>
   <depend>geometry_msgs</depend>
   <depend>std_msgs</depend>
+  <depend>std_srvs</depend>
+  <depend>nav_msgs</depend>
+  <depend>sensor_msgs</depend>
+  <depend>tf2_ros</depend>
 </package>
