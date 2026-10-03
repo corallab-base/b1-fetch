@@ -1,9 +1,11 @@
 # Added on top of rtabmap_2d.yaml when mapping.launch camera:=true: the front
-# camera's (filtered) infrared image + depth for place recognition. Scans
-# still drive tracking and the grid; images propose loop closures, and
-# visual matching gives the guess that ICP on the scans refines.
+# camera's (filtered) infrared image + depth for place recognition. Images
+# propose loop closures and visual matching (features + depth) computes
+# them. Not refined by ICP on /scan: our scans are too sparse for ICP
+# (<= ~255 points, ~17% correspondences on the first drive; it rejected
+# nearly every match), so a Vis+ICP loop closure would be rejected too.
 Kp/MaxFeatures: "400"
-Reg/Strategy: "2"          # visual, then ICP refinement
+Reg/Strategy: "0"          # visual
 Vis/MinInliers: "15"
 Vis/MaxDepth: "4.0"        # m; the D430 depth is unreliable beyond
 Mem/ImagePreDecimation: "1"

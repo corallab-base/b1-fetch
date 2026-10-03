@@ -131,6 +131,14 @@ Why: any packet carries a mode, a lying B1 stands up from a few ms of mode 1, an
 - Offline smoke test: synthetic 4x3 m room -> walls reproduced to 1 cm. Not yet on the robot.
 - Coverage: front + sides only (~260 deg minus gaps), 3 m camera clip, so maps need slow
   drives with turns; no loop closure by appearance (no images), only by proximity.
+- First real drive 2026-10-04 (bags/mapping_lab.bag on .23, 37 min, 40.5 m, room ~9.5x6.3 m
+  with a table/boxes island; maps/lab.db): 225 nodes, NO loop closure although the robot came
+  back within 0.65 m. Map shows the room but smeared/doubled walls (drift). Replays found why:
+  ICP on /scan almost always fails (<= ~255 points, mean 44 correspondences, ratio ~0.17,
+  rejected), so both neighbour refinement and proximity closures fail; the map is ~pure leg
+  odometry. Fixes in progress: front-camera place recognition (mapping.launch camera:=true,
+  Reg/Strategy 0, infrared image with 3x3 median vs projector dots, 161 words/image);
+  denser scans for ICP (obstacle cloud instead of 1 deg nearest-point scan) still open.
 
 ## Rear coverage (2026-10-04, robot standing, measured on .25)
 The rear camera (88.7 deg down) sees the floor only from x -0.71 to -0.21, mostly under the
