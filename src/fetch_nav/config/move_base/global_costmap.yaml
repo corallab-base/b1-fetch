@@ -1,0 +1,24 @@
+global_costmap:
+  global_frame: map
+  robot_base_frame: base_link
+  update_frequency: 2.0
+  publish_frequency: 1.0
+  transform_tolerance: 0.5
+  resolution: 0.05
+  # A 30 x 30 m window around the robot rather than the map's own size: the
+  # map grows while mapping, and a goal in unmapped space must still be on
+  # the costmap (a static-sized costmap made such goals unplannable). The
+  # live map is copied into the window.
+  rolling_window: true
+  width: 30.0
+  height: 30.0
+  plugins:
+    - {name: static, type: "costmap_2d::StaticLayer"}
+    - {name: obstacles, type: "costmap_2d::ObstacleLayer"}
+    - {name: inflation, type: "costmap_2d::InflationLayer"}
+  static:
+    # RTAB-Map's live grid: it keeps growing while mapping, the costmap
+    # resizes with it. Unknown space stays unknown (planning may cross it).
+    map_topic: /rtabmap/grid_map
+    subscribe_to_updates: true
+    track_unknown_space: true

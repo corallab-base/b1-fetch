@@ -41,6 +41,10 @@ inputs:
   - name: nav               # move_base (remap its cmd_vel here)
     topic: cmd_vel_nav
     blocked_directions: [backward]   # no camera covers behind the robot
+    # move_base avoids obstacles with its costmaps; slowing it down here only
+    # fought its planner (in simulation the slow zones were active most of a
+    # drive). Stop zones and stale cameras still stop it.
+    ignore_slowdown: true
 
 # Directions no camera watches; shown as "not covered" in the status. The rear
 # camera looks straight down and only sees under the robot's back half: at

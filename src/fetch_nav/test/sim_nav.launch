@@ -1,0 +1,47 @@
+<launch>
+  <!-- Offline navigation test: sim_robot.py (fake B1 + left/right/front
+       cameras in a 9 x 6 m room with a table island) feeding the real
+       zone_checkers, mergers, safety filter, RTAB-Map (fresh map, no images)
+       and move_base. Run with test/run_sim_nav.sh. -->
+  <arg name="database"/>
+  <param name="use_sim_time" value="false"/>
+
+  <node pkg="fetch_nav" type="sim_robot.py" name="sim_robot" output="screen" required="true"/>
+
+  <include file="$(find fetch_safety)/launch/safety_filter.launch">
+    <arg name="front_down" value="false"/>
+  </include>
+  <group ns="cam_left">
+    <node pkg="fetch_safety" type="zone_checker_node" name="zone_checker" required="true">
+      <rosparam command="load" file="$(find fetch_safety)/config/safety_filter.yaml"/>
+      <param name="obstacle_cloud" value="true"/>
+      <remap from="points" to="depth/color/points"/>
+    </node>
+  </group>
+  <group ns="cam_right">
+    <node pkg="fetch_safety" type="zone_checker_node" name="zone_checker" required="true">
+      <rosparam command="load" file="$(find fetch_safety)/config/safety_filter.yaml"/>
+      <param name="obstacle_cloud" value="true"/>
+      <remap from="points" to="depth/color/points"/>
+    </node>
+  </group>
+  <group ns="cam_front">
+    <node pkg="fetch_safety" type="zone_checker_node" name="zone_checker" required="true">
+      <rosparam command="load" file="$(find fetch_safety)/config/safety_filter.yaml"/>
+      <param name="obstacle_cloud" value="true"/>
+      <remap from="points" to="depth/color/points"/>
+    </node>
+  </group>
+  <node pkg="fetch_safety" type="scan_merger_node" name="scan_merger">
+    <rosparam param="scans">[/cam_left/scan, /cam_right/scan, /cam_front/scan]</rosparam>
+  </node>
+  <node pkg="fetch_safety" type="cloud_merger_node" name="cloud_merger">
+    <rosparam param="clouds">[/cam_left/obstacles, /cam_right/obstacles, /cam_front/obstacles]</rosparam>
+  </node>
+
+  <include file="$(find fetch_nav)/launch/nav.launch">
+    <arg name="fresh" value="true"/>
+    <arg name="camera" value="false"/>
+    <arg name="database" value="$(arg database)"/>
+  </include>
+</launch>

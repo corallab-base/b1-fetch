@@ -1,0 +1,38 @@
+<launch>
+  <!-- Navigation while mapping: RTAB-Map keeps building `map` (continuous
+       mapping, front camera for place recognition) and move_base plans on
+       its live grid. Needs bringup (front_infra:=true for the camera) and the
+       armed bridge (odometry). Goals: /move_base_simple/goal (Foxglove 3D
+       panel publish tool, or RViz 2D Nav Goal), in the map frame.
+
+         roslaunch fetch_nav nav.launch                # continues maps/lab2.db
+         roslaunch fetch_nav nav.launch map:=other
+
+       move_base drives /cmd_vel_nav, the safety filter's nav input: it never
+       reverses, and manual /cmd_vel_raw (teleop) overrides it at any time.
+       A restart starts a new RTAB-Map session; it joins the saved map once
+       the front camera recognises a place, so start facing a mapped area. -->
+  <arg name="map" default="lab2"/>
+  <arg name="camera" default="true"/>
+  <arg name="use_sim_time" default="false"/>
+  <!-- fresh:=true starts an empty map; database overrides maps/<map>.db -->
+  <arg name="fresh" default="false"/>
+  <arg name="database" default="$(env HOME)/projects/fetch/maps/$(arg map).db"/>
+
+  <include file="$(find fetch_nav)/launch/mapping.launch">
+    <arg name="map" value="$(arg map)"/>
+    <arg name="fresh" value="$(arg fresh)"/>
+    <arg name="database" value="$(arg database)"/>
+    <arg name="camera" value="$(arg camera)"/>
+    <arg name="use_sim_time" value="$(arg use_sim_time)"/>
+  </include>
+
+  <node pkg="move_base" type="move_base" name="move_base" output="screen">
+    <remap from="cmd_vel" to="/cmd_vel_nav"/>
+    <rosparam command="load" file="$(find fetch_nav)/config/move_base/move_base.yaml"/>
+    <rosparam command="load" file="$(find fetch_nav)/config/move_base/costmap_common.yaml" ns="global_costmap"/>
+    <rosparam command="load" file="$(find fetch_nav)/config/move_base/costmap_common.yaml" ns="local_costmap"/>
+    <rosparam command="load" file="$(find fetch_nav)/config/move_base/global_costmap.yaml"/>
+    <rosparam command="load" file="$(find fetch_nav)/config/move_base/local_costmap.yaml"/>
+  </node>
+</launch>

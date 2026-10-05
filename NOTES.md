@@ -150,6 +150,20 @@ Why: any packet carries a mode, a lying B1 stands up from a few ms of mode 1, an
   RTAB-Map took ~0.5 s per update by the end (1 s budget): cap it (Rtabmap/TimeThr) for long
   continuous mapping. Images make bags ~2.3 MB/s: record them only when needed.
 
+## Navigation (since 2026-10-06)
+- `roslaunch fetch_nav nav.launch` (default map:=lab2, camera:=true): RTAB-Map keeps mapping into
+  maps/<map>.db (continuous mapping) + move_base on its live grid. Goals: /move_base_simple/goal
+  (Foxglove publish tool), frame map. Output /cmd_vel_nav -> filter (nav input: never reverses,
+  ignores slow zones, stop zones + stale cameras still stop; manual /cmd_vel_raw overrides).
+- Global costmap: rolling 30x30 m window with RTAB-Map's grid copied in (a map-sized costmap made
+  goals in unmapped space unplannable). Obstacle layer: /obstacles marks, /scan clears.
+- Local planner TEB (DWA dithered and never turned around when the path was behind the robot).
+  oscillation_timeout 40 s (turning around took > 15 s). RTAB-Map node every 20 cm / ~6 deg.
+- Offline sim `src/fetch_nav/test/run_sim_nav.sh` (fake robot + cameras in a 9x6 m room with a
+  table island, odometry 3% short, real checkers/filter/RTAB-Map/move_base): both goals reached
+  (40 s / 47 s, 0.16 m from target), >= 0.26 m from obstacles, no backward command. Not yet on
+  the robot.
+
 ## Rear coverage (2026-10-04, robot standing, measured on .25)
 The rear camera (88.7 deg down) sees the floor only from x -0.71 to -0.21, mostly under the
 robot. At obstacle height it reaches at most 7 cm into the rear zones (x <= -0.60), nothing

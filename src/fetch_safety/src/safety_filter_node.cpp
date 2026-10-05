@@ -18,7 +18,8 @@
 // teleop overrides navigation. Each input can have directions it may never
 // move in (blocked_directions), e.g. navigation never reverses because no
 // camera covers the zone behind the robot (~uncovered_directions, shown in
-// the status).
+// the status), and can ignore slowdown zones (ignore_slowdown): move_base
+// avoids obstacles with its costmaps, so for it the filter only stops.
 
 #include <ros/ros.h>
 #include <geometry_msgs/Twist.h>
@@ -49,6 +50,7 @@ struct Source {
 struct Input {
   std::string name;
   std::vector<Direction> blocked;  // never moves this way, whatever the cameras see
+  bool ignore_slowdown = false;    // only stop zones and stale cameras apply
   ros::Subscriber sub;
   geometry_msgs::Twist cmd;
   ros::Time time;  // receive time of the last command; zero = never
@@ -121,6 +123,7 @@ class SafetyFilter {
         Input input;
         input.name = static_cast<std::string>(in["name"]);
         topics_.push_back(static_cast<std::string>(in["topic"]));
+        if (in.hasMember("ignore_slowdown")) input.ignore_slowdown = static_cast<bool>(in["ignore_slowdown"]);
         if (in.hasMember("blocked_directions")) {
           XmlRpc::XmlRpcValue& dirs = in["blocked_directions"];
           for (int d = 0; d < dirs.size(); ++d) input.blocked.push_back(parseDirection(static_cast<std::string>(dirs[d])));
@@ -228,7 +231,7 @@ class SafetyFilter {
       const Direction d = v > 0.0 ? positive : negative;
       const DirectionState& st = states[d];
       const bool blocked = std::find(input.blocked.begin(), input.blocked.end(), d) != input.blocked.end();
-      v = st.stop || blocked ? 0.0 : v * st.scale;
+      v = st.stop || blocked ? 0.0 : input.ignore_slowdown ? v : v * st.scale;
     };
     limit(out.linear.x, FORWARD, BACKWARD);
     limit(out.linear.y, LEFT, RIGHT);

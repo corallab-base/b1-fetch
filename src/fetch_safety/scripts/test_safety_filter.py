@@ -185,6 +185,14 @@ def main():
     h.set_scene(everyone, {'front': blob(1.3, 0.0)})
     h.check('obstacle in front_slow: vx scaled 0.3', h.command(0.5, 0.0), (0.15, 0.0, 0.0))
 
+    rospy.sleep(0.8)   # let the manual command above go stale (manual has priority)
+    h.check('nav ignores slowdown zones: vx kept', h.command(nav=(0.5, 0.0, 0.0)), (0.5, 0.0, 0.0))
+    rospy.sleep(0.8)
+
+    h.set_scene(everyone, {'front': blob(0.8, 0.0)})
+    h.check('nav still stops in a stop zone', h.command(nav=(0.5, 0.2, 0.0)), (0.0, 0.2, 0.0))
+    rospy.sleep(0.8)
+
     h.set_scene(everyone, {'front': blob(0.8, 0.0, n=10)})
     h.check('below min_points: ignored as noise', h.command(0.5, 0.0), (0.5, 0.0, 0.0))
 

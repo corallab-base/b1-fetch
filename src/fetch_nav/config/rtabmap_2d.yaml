@@ -9,11 +9,12 @@ Reg/Force3DoF: "true"                # x, y, yaw only
 Kp/MaxFeatures: "-1"                 # no visual words
 Mem/NotLinkedNodesKept: "false"
 
-# Add a node every 10 cm / ~3 deg of motion, refine each odometry step
-# against the previous scan, and look for loop closures by proximity
-# (the only loop closure possible without images).
-RGBD/LinearUpdate: "0.10"
-RGBD/AngularUpdate: "0.05"
+# Add a node every 20 cm / ~6 deg of motion (10 cm / 3 deg made updates take
+# ~0.5 s after 680 nodes; continuous mapping keeps adding them), refine each
+# odometry step against the previous cloud, and look for loop closures by
+# proximity (and by appearance with camera:=true).
+RGBD/LinearUpdate: "0.20"
+RGBD/AngularUpdate: "0.10"
 RGBD/NeighborLinkRefining: "true"
 RGBD/ProximityBySpace: "true"
 RGBD/ProximityAngle: "180"           # the scan sees ~360 deg: try regardless of heading

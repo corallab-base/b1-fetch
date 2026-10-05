@@ -1,0 +1,72 @@
+# move_base for the B1. Output goes to /cmd_vel_nav (remapped in nav.launch):
+# the safety filter's nav input, which never reverses and which manual
+# teleop (/cmd_vel_raw) overrides.
+base_global_planner: global_planner/GlobalPlanner
+base_local_planner: teb_local_planner/TebLocalPlannerROS
+controller_frequency: 10.0
+planner_frequency: 1.0
+controller_patience: 5.0
+planner_patience: 5.0
+# Turning around in place (no reverse) at 0.2-0.45 rad/s, often slowed to 30%
+# by the safety filter near walls, takes longer than 15 s without moving
+# 0.2 m: with 15 s move_base mistook that for oscillating and gave up.
+oscillation_timeout: 40.0
+oscillation_distance: 0.2
+shutdown_costmaps: false
+# no aggressive reset; rotate in place to look around, then clear and retry
+recovery_behaviors:
+  - {name: conservative_reset, type: clear_costmap_recovery/ClearCostmapRecovery}
+  - {name: rotate_recovery, type: rotate_recovery/RotateRecovery}
+conservative_reset: {reset_distance: 2.0, layer_names: [obstacles]}
+
+GlobalPlanner:
+  allow_unknown: true          # continuous mapping: unexplored space may be crossed
+  use_dijkstra: true
+  use_grid_path: false
+  default_tolerance: 0.2
+  cost_factor: 0.55
+  neutral_cost: 66
+  lethal_cost: 253
+
+TebLocalPlannerROS:
+  # TEB, not DWA: with the path behind the robot (no reverse allowed) DWA only
+  # dithered (+-0.05 m/s sideways, <0.1 rad/s) in simulation and never turned
+  # around. TEB plans a timed trajectory a few seconds ahead, turning
+  # included. Speeds stay below the bridge caps (vx 0.3, vy 0.2, wz 0.5).
+  odom_topic: /odom
+  global_plan_overwrite_orientation: true
+  max_global_plan_lookahead_dist: 3.0
+  feasibility_check_no_poses: 4
+
+  max_vel_x: 0.25
+  max_vel_x_backwards: 0.02       # must be > 0; the filter blocks nav backward anyway
+  max_vel_y: 0.15
+  max_vel_theta: 0.45
+  acc_lim_x: 0.5
+  acc_lim_y: 0.5
+  acc_lim_theta: 1.0
+  min_turning_radius: 0.0         # legged: turns in place
+
+  footprint_model:
+    type: polygon
+    vertices: [[0.60, 0.28], [0.60, -0.28], [-0.60, -0.28], [-0.60, 0.28]]
+
+  xy_goal_tolerance: 0.2
+  yaw_goal_tolerance: 0.2
+  free_goal_vel: false
+
+  min_obstacle_dist: 0.15
+  inflation_dist: 0.45
+  include_costmap_obstacles: true
+  costmap_obstacles_behind_robot_dist: 1.0
+
+  dt_ref: 0.3
+  dt_hysteresis: 0.1
+  no_inner_iterations: 5
+  no_outer_iterations: 4
+  enable_homotopy_class_planning: false   # CPU; one trajectory is enough here
+
+  weight_kinematics_forward_drive: 1000.0  # strongly prefer forward over backward
+  weight_kinematics_nh: 1.0               # holonomic: sideways is fine
+  weight_optimaltime: 1.0
+  weight_obstacle: 50.0
