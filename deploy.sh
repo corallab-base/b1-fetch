@@ -40,11 +40,9 @@ for b in $BOARDS; do
   fi
   echo "  at $(ssh $host 'cd ~/projects/fetch && git log --oneline -1')"
   echo "  building (log: ~/projects/fetch/build.log on .$b)"
-  # Build on the board's own underlay: .24 keeps realsense-ros in
-  # ~/realsense_ws, and a build that only sourced /opt/ros dropped it from
-  # the workspace chain (cameras then failed to load, 2026-10-06).
+  # realsense-ros is in the repo now, so every board builds on /opt/ros
+  # alone (.24's old ~/realsense_ws is no longer chained in).
   if ssh $host 'cd ~/projects/fetch && source /opt/ros/melodic/setup.bash &&
-                { [ ! -f ~/realsense_ws/devel/setup.bash ] || source ~/realsense_ws/devel/setup.bash; } &&
                 nice catkin_make -j2 --force-cmake >build.log 2>&1'; then
     echo "  build OK"
   else

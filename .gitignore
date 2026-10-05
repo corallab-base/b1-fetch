@@ -6,8 +6,8 @@ build.log
 # runtime data
 *.log
 /bags/
-# third-party source built in place on some boards (realsense-ros 2.3.2;
-# .24 uses ~/realsense_ws instead)
-/src/realsense-ros/
+# realsense-ros's camera meshes, moved out of the workspace (unused)
+/backup/realsense2_description/
 # map databases (large; keep exported .pgm/.yaml if needed)
 /maps/*.db
+/backup/realsense-ros.pre-git/
