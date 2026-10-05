@@ -50,7 +50,8 @@ for b in $BOARDS; do
                 if [ -e /usr/lib/aarch64-linux-gnu/libopencv_core.so.3.2.0 ]; then rm -f $ign
                 else touch $ign; source ~/realsense_ws/devel/setup.bash
                      echo "no system OpenCV 3.2: using ~/realsense_ws for realsense2_camera"; fi &&
-                nice catkin_make -j2 --force-cmake -DCATKIN_BLACKLIST_PACKAGES="" >build.log 2>&1'; then
+                nice catkin_make -j2 --force-cmake -DCATKIN_BLACKLIST_PACKAGES="" >build.log 2>&1 &&
+                source devel/setup.bash && rospack profile >/dev/null'; then   # stale cache found ignored packages
     echo "  build OK"
   else
     echo "  BUILD FAILED, last lines:"; ssh $host 'tail -15 ~/projects/fetch/build.log'; exit 1
