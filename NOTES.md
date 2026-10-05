@@ -29,8 +29,14 @@ L2+A or `b1_stand_down` -> Ctrl+C bringup -> power off.
   builds on every board. `.23` has SSH keys authorized on .24/.25 (2026-10-04), so
   bringup can be launched from .23; .24 also reaches .23/.25. roslaunch logs in with paramiko
   2.0.0, which can't use ed25519 keys: the RSA key (~/.ssh/id_rsa) is the one it needs.
-- Per-board differences left: realsense-ros 2.3.2 is in src/ on .23/.25
-  (ignored by git) but in ~/realsense_ws on .24. ~/.bashrc on .24 also sets ROS_IP/master.
+- realsense-ros (Unitree's 2.3.2 + D430i support, realsense2_camera only) is in the repo
+  since 2026-10-06, pinned to librealsense exactly 2.50.0 (/usr/local on .23/.25). .24 is the
+  exception: its OpenCV 3.2 core library was moved to ~/opencv3_backup_safe (found via some
+  runtime path, not the system dir), so ROS's cv_bridge can't be linked against there; deploy.sh
+  puts a CATKIN_IGNORE on the repo copy and chains ~/realsense_ws (built before the move).
+  Moving OpenCV 3.2 back would make .24 identical (needs sudo; ask why it was moved first).
+  Verified: all 4 cameras at 15 Hz in bringup after the change. ~/.bashrc on .24 also sets
+  ROS_IP/master (env.sh overrides).
 - Every camera has a zone_checker on its own board (camera.launch) publishing
   /<cam>/zone_counts; the filter only reads those, so it (and later move_base) can run
   on any board. Clouds are still published for Foxglove and only cross the network
