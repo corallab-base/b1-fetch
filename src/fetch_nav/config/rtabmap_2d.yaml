@@ -1,5 +1,7 @@
-# RTAB-Map parameters for 2D mapping from the merged depth-camera scan
-# (/scan: 1 deg bins, <= 4 m, front + sides, nothing behind) and leg odometry.
+# RTAB-Map parameters for 2D mapping from the merged obstacle cloud
+# (/obstacles: left/right/front cameras' points 10-90 cm above the floor,
+# robot body removed, thinned to 5 cm cubes, <= 4 m, ~5 Hz) and leg odometry.
+# (The 1-degree /scan was too sparse for ICP: ~17% correspondences.)
 # Values are strings, as rtabmap expects.
 
 Reg/Strategy: "1"                    # ICP on the scans (no images)
@@ -31,8 +33,13 @@ Icp/MaxTranslation: "0.5"
 Icp/OutlierRatio: "0.7"
 Icp/CorrespondenceRatio: "0.2"
 
-# Occupancy grid from the scan; rays clear free space up to the range
+# Occupancy grid from the cloud: every point is an obstacle (the cloud is
+# already the obstacle band, so no ground segmentation); rays from the robot
+# to the points mark free space.
 Grid/Sensor: "0"
+Grid/3D: "false"
+Grid/NormalsSegmentation: "false"
+Grid/MaxGroundHeight: "-0.5"         # base_link is ~0.55 m up; the cloud starts at -0.45
 Grid/CellSize: "0.05"
 Grid/RangeMax: "2.5"                 # D430 depth gets noisy beyond ~2.5 m (smeared walls)
 Grid/RayTracing: "true"

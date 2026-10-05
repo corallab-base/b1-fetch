@@ -15,4 +15,5 @@ fi
 mkdir -p ~/projects/fetch/bags
 exec rosbag record -O ~/projects/fetch/bags/mapping_$name \
   /scan /cam_left/scan /cam_right/scan /cam_front/scan /cam_front_down/scan /cam_rear/scan \
+  /obstacles /cam_left/obstacles /cam_right/obstacles /cam_front/obstacles \
   /odom /b1_bridge/imu /b1_bridge/state /tf /tf_static /safety_filter/status /cmd_vel "${extra[@]}"

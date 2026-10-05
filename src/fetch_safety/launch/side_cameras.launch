@@ -5,6 +5,7 @@
   <arg name="left_serial"  default="152122075367"/>
   <arg name="right_serial" default="150622073088"/>
   <arg name="base_frame"   default="base_link"/>
+  <arg name="obstacle_cloud" default="true"/>
 
   <!-- both cameras in one driver process (see camera.launch) -->
   <node pkg="nodelet" type="nodelet" name="cam_manager_24" args="manager" output="screen" required="true"/>
@@ -12,11 +13,13 @@
     <arg name="camera"    value="cam_left"/>
     <arg name="serial_no" value="$(arg left_serial)"/>
     <arg name="manager"   value="/cam_manager_24"/>
+    <arg name="obstacle_cloud" value="$(arg obstacle_cloud)"/>
   </include>
   <include file="$(find fetch_safety)/launch/camera.launch">
     <arg name="camera"    value="cam_right"/>
     <arg name="serial_no" value="$(arg right_serial)"/>
     <arg name="manager"   value="/cam_manager_24"/>
+    <arg name="obstacle_cloud" value="$(arg obstacle_cloud)"/>
   </include>
 
   <!-- static_transform_publisher args: x y z yaw pitch roll parent child.

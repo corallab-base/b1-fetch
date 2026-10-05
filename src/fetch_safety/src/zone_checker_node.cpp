@@ -4,11 +4,16 @@
 //
 //   points (sensor_msgs/PointCloud2)  ->  zone_counts (fetch_safety/ZoneCounts)
 //                                     ->  scan (sensor_msgs/LaserScan, base frame)
+//                                     ->  obstacles (PointCloud2, base frame; ~obstacle_cloud)
 //
 // The scan is the nearest obstacle per angle around the base frame origin
 // (same height band, robot body excluded): +inf where the camera saw only
 // floor, NaN where it didn't look. scan_merger_node combines the cameras'
 // scans into one /scan for mapping and move_base.
+// With ~obstacle_cloud, every ~obstacle_cloud_every-th cloud also yields the
+// same height band's points thinned to one per ~obstacle_voxel cube
+// (`obstacles`), merged by cloud_merger_node into /obstacles for RTAB-Map's
+// scan matching (the 1-degree scan is too sparse for it).
 //
 // Loads the same config as the filter (zones, min_z, max_z, base_frame,
 // point_stride). One count message per cloud; if the camera or this node
@@ -19,6 +24,7 @@
 #include <ros/ros.h>
 #include <fetch_safety/ZoneCounts.h>
 #include <sensor_msgs/LaserScan.h>
+#include <sensor_msgs/point_cloud2_iterator.h>
 #include <tf2_ros/transform_listener.h>
 #include <tf2_eigen/tf2_eigen.h>
 
@@ -46,6 +52,12 @@ class ZoneChecker {
 
     pub_ = nh.advertise<fetch_safety::ZoneCounts>("zone_counts", 1);
     scan_pub_ = nh.advertise<sensor_msgs::LaserScan>("scan", 1);
+    double voxel;
+    pnh.param("obstacle_cloud", obstacle_cloud_, false);
+    pnh.param("obstacle_cloud_every", obstacle_every_, 3);  // 15 Hz camera -> 5 Hz
+    pnh.param("obstacle_voxel", voxel, 0.05);
+    scan_.voxel = voxel;
+    if (obstacle_cloud_) cloud_pub_ = nh.advertise<sensor_msgs::PointCloud2>("obstacles", 1);
     sub_ = nh.subscribe("points", 1, &ZoneChecker::cloudCallback, this);
     ROS_INFO("zone_checker: %s -> %s, %zu zones, base_frame=%s, z band [%.2f, %.2f]",
              sub_.getTopic().c_str(), pub_.getTopic().c_str(), zones_.size(), base_frame_.c_str(), min_z_, max_z_);
@@ -63,6 +75,7 @@ class ZoneChecker {
       return;
     }
     const auto tf = tf2::transformToEigen(tf_msg);
+    scan_.collect_cloud = obstacle_cloud_ && (++cloud_count_ % std::max(1, obstacle_every_) == 0);
 
     fetch_safety::ZoneCounts out;
     std::string error;
@@ -85,6 +98,20 @@ class ZoneChecker {
     scan.range_max = scan_.range_max;
     scan.ranges = scan_.ranges();
     scan_pub_.publish(scan);
+
+    if (scan_.collect_cloud) {
+      sensor_msgs::PointCloud2 cloud;
+      cloud.header = out.header;
+      sensor_msgs::PointCloud2Modifier mod(cloud);
+      mod.setPointCloud2FieldsByString(1, "xyz");
+      mod.resize(scan_.cloud.size());
+      sensor_msgs::PointCloud2Iterator<float> x(cloud, "x"), y(cloud, "y"), z(cloud, "z");
+      for (const auto& p : scan_.cloud) {
+        *x = p.x(), *y = p.y(), *z = p.z();
+        ++x, ++y, ++z;
+      }
+      cloud_pub_.publish(cloud);
+    }
   }
 
   tf2_ros::Buffer tf_buffer_;
@@ -95,8 +122,11 @@ class ZoneChecker {
   std::vector<Zone> zones_;
   std::vector<std::string> names_;
   ros::Subscriber sub_;
-  ros::Publisher pub_, scan_pub_;
+  ros::Publisher pub_, scan_pub_, cloud_pub_;
   ScanBuilder scan_;
+  bool obstacle_cloud_;
+  int obstacle_every_;
+  unsigned long cloud_count_ = 0;
 };
 
 }  // namespace fetch_safety

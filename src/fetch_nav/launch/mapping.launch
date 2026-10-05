@@ -1,6 +1,7 @@
 <launch>
-  <!-- 2D SLAM with RTAB-Map from the merged camera scan (/scan, scan_merger in
-       bringup) and the robot's odometry (TF odom -> base_link from the armed
+  <!-- 2D SLAM with RTAB-Map from the merged thinned obstacle cloud of the
+       left, right and front cameras (/obstacles, cloud_merger in bringup) and
+       the robot's odometry (TF odom -> base_link from the armed
        bridge). Scan matching (ICP) refines odometry and closes loops when the
        robot comes back near a place it mapped; there are no images.
 
@@ -38,9 +39,10 @@
       <param name="subscribe_depth" value="$(arg camera)"/>
       <param name="subscribe_rgb" value="false"/>
       <param name="subscribe_rgbd" value="false"/>
-      <param name="subscribe_scan" value="true"/>
+      <param name="subscribe_scan" value="false"/>
+      <param name="subscribe_scan_cloud" value="true"/>
       <param name="wait_for_transform_duration" value="0.2"/>
-      <remap from="scan" to="/scan"/>
+      <remap from="scan_cloud" to="/obstacles"/>
       <!-- camera: the filtered infrared image stands in for "rgb"; the depth
            (212x120) is from the same viewpoint at half its resolution -->
       <param name="approx_sync" value="$(arg camera)"/>

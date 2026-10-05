@@ -35,7 +35,11 @@ add_dependencies(zone_checker_node ${PROJECT_NAME}_generate_messages_cpp)
 add_executable(scan_merger_node src/scan_merger_node.cpp)
 target_link_libraries(scan_merger_node ${catkin_LIBRARIES})
 
-install(TARGETS safety_filter_node zone_checker_node scan_merger_node
+# Combines the zone_checkers' thinned obstacle clouds into /obstacles
+add_executable(cloud_merger_node src/cloud_merger_node.cpp)
+target_link_libraries(cloud_merger_node ${catkin_LIBRARIES})
+
+install(TARGETS safety_filter_node zone_checker_node scan_merger_node cloud_merger_node
   RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION})
 install(DIRECTORY config launch
   DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION})

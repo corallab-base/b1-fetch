@@ -33,6 +33,8 @@ class Harness(object):
         self.status = ''
         self.scan = None
         rospy.Subscriber('/scan', LaserScan, self._on_scan)
+        self.obstacles = None
+        rospy.Subscriber('/obstacles', PointCloud2, self._on_obstacles)
         rospy.Subscriber('/safety_filter/status', String, self._on_status)
         self.lock = threading.Lock()
         self.points = {k: [] for k in TOPICS}   # points each fake camera "sees"
@@ -42,6 +44,18 @@ class Harness(object):
         rospy.Subscriber('/cmd_vel', Twist, self._on_out)
         rospy.Timer(rospy.Duration(1.0 / 15), self._publish_clouds)
         self.failures = 0
+
+    def _on_obstacles(self, msg):
+        self.obstacles = msg
+
+    def check_obstacles(self, name, near, max_points):
+        """/obstacles has 1..max_points points, all within 0.1 m of `near` (x, y)."""
+        rospy.sleep(0.5)
+        pts = list(point_cloud2.read_points(self.obstacles, ('x', 'y', 'z'))) if self.obstacles else []
+        ok = 0 < len(pts) <= max_points and all(abs(p[0] - near[0]) < 0.1 and abs(p[1] - near[1]) < 0.1 for p in pts)
+        print('%s %-55s got %d points expected 1..%d near %s' % ('PASS' if ok else 'FAIL', name, len(pts), max_points, near))
+        if not ok:
+            self.failures += 1
 
     def _on_scan(self, msg):
         self.scan = msg
@@ -160,6 +174,8 @@ def main():
     h.check('obstacle in front_stop: vx zeroed, vy kept', h.command(0.5, -0.3), (0.0, -0.3, 0.0))
     h.check('obstacle in front_stop: reversing allowed', h.command(-0.5, 0.0), (-0.5, 0.0, 0.0))
     h.check_scan('/scan: front obstacle at ~0.8 m straight ahead', 1, 0.79, 0.86)
+    # 60 points over 6x6 cm -> a few 5 cm voxels
+    h.check_obstacles('/obstacles: front blob thinned to a few voxels', (0.82, 0.02), 8)
     h.check_scan('/scan: nothing seen behind -> unknown (NaN)', 180, 'nan')
 
     h.set_scene(everyone, {'rear': blob(-0.8, 0.0)})
@@ -175,6 +191,8 @@ def main():
     h.set_scene(everyone, {'front': blob(0.8, 0.0, z=-0.55)})
     h.check('ground points below min_z: ignored', h.command(0.5, 0.0), (0.5, 0.0, 0.0))
     h.check_scan('/scan: floor only ahead -> clear (+inf)', 1, 'inf')
+    rospy.sleep(0.6)
+    h.check('/obstacles: floor points are not obstacles', (h.obstacles.width,), (0,))
 
     h.set_scene(everyone, {'left': blob(0.0, 0.45)})
     h.check('obstacle in left_stop: vy>0 zeroed', h.command(0.3, 0.3), (0.3, 0.0, 0.0))

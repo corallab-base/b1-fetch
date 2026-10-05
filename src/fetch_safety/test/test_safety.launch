@@ -20,9 +20,14 @@
       <remap from="points" to="depth/color/points"/>
     </node>
   </group>
+  <node pkg="fetch_safety" type="cloud_merger_node" name="cloud_merger" required="true">
+    <rosparam param="clouds">[/cam_left/obstacles, /cam_right/obstacles, /cam_front/obstacles]</rosparam>
+  </node>
   <group ns="cam_front">
     <node pkg="fetch_safety" type="zone_checker_node" name="zone_checker" required="true">
       <rosparam command="load" file="$(find fetch_safety)/config/safety_filter.yaml"/>
+      <param name="obstacle_cloud" value="true"/>
+      <param name="obstacle_cloud_every" value="1"/>
       <remap from="points" to="depth/color/points"/>
     </node>
   </group>

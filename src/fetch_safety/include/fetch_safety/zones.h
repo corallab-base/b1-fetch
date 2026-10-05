@@ -11,6 +11,7 @@
 #include <cmath>
 #include <cstring>
 #include <limits>
+#include <unordered_set>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -101,7 +102,13 @@ inline std::vector<Zone> loadZones(ros::NodeHandle& pnh) {
 // Bins where the camera saw anything (floor included) but no obstacle are
 // clear (+inf); bins it didn't see at all are unknown (NaN). Points inside
 // the body box (the robot itself, e.g. the legs) are ignored.
+// With collect_cloud, it also keeps the band's points thinned to one per
+// voxel-sized cube (`cloud`): a denser obstacle view for scan matching.
 struct ScanBuilder {
+  bool collect_cloud = false;
+  float voxel = 0.05f;               // m
+  std::vector<Eigen::Vector3f> cloud;
+  std::unordered_set<uint64_t> voxels;
   int bins = 360;          // over a full turn, starting at -pi
   float range_max = 4.0f;  // m from the base frame origin
   float body_min_x = 0, body_max_x = 0, body_min_y = 0, body_max_y = 0;
@@ -111,6 +118,8 @@ struct ScanBuilder {
   void reset() {
     nearest.assign(bins, std::numeric_limits<float>::infinity());
     seen.assign(bins, 0);
+    cloud.clear();
+    voxels.clear();
   }
   void add(const Eigen::Vector3f& q, bool in_band) {
     if (q.x() >= body_min_x && q.x() <= body_max_x && q.y() >= body_min_y && q.y() <= body_max_y) return;
@@ -118,7 +127,13 @@ struct ScanBuilder {
     if (r > range_max) return;
     const int b = std::min(bins - 1, std::max(0, int((std::atan2(q.y(), q.x()) + float(M_PI)) / (2 * float(M_PI)) * bins)));
     seen[b] = 1;
-    if (in_band) nearest[b] = std::min(nearest[b], r);
+    if (!in_band) return;
+    nearest[b] = std::min(nearest[b], r);
+    if (collect_cloud) {
+      // 21 bits per axis: +-52 km at 5 cm, far beyond range_max
+      auto cell = [this](float v) { return uint64_t(int64_t(std::floor(v / voxel)) & 0x1FFFFF); };
+      if (voxels.insert(cell(q.x()) | cell(q.y()) << 21 | cell(q.z()) << 42).second) cloud.push_back(q);
+    }
   }
   // LaserScan ranges: nearest obstacle, +inf where seen and clear, NaN where unseen
   std::vector<float> ranges() const {

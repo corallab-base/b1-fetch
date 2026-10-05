@@ -138,7 +138,11 @@ Why: any packet carries a mode, a lying B1 stands up from a few ms of mode 1, an
   rejected), so both neighbour refinement and proximity closures fail; the map is ~pure leg
   odometry. Fixes in progress: front-camera place recognition (mapping.launch camera:=true,
   Reg/Strategy 0, infrared image with 3x3 median vs projector dots, 161 words/image);
-  denser scans for ICP (obstacle cloud instead of 1 deg nearest-point scan) still open.
+  denser scans for ICP: DONE 2026-10-06: zone_checker obstacle_cloud (left/right/front: band
+  points thinned to 5 cm voxels, ~5 Hz) -> cloud_merger -> /obstacles; RTAB-Map uses that
+  (scan_cloud) instead of /scan. Synthetic test: odometry 10% short, RTAB-Map corrected to the
+  true 1.20 m with 0 rejected matches. Not yet on the robot. /scan stays (move_base clearing,
+  +inf = clear); plan for move_base: /obstacles marks, /scan clears.
 
 ## Rear coverage (2026-10-04, robot standing, measured on .25)
 The rear camera (88.7 deg down) sees the floor only from x -0.71 to -0.21, mostly under the

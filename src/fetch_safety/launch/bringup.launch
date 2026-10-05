@@ -55,6 +55,7 @@
     <arg name="serial_no" value="150622072829"/>
     <arg name="manager"   value="/cam_manager_23"/>
     <arg name="infra"     value="$(arg front_infra)"/>
+    <arg name="obstacle_cloud" value="true"/>
   </include>
   <include if="$(arg front_down)" file="$(find fetch_safety)/launch/camera.launch">
     <arg name="camera"    value="cam_front_down"/>
@@ -88,6 +89,12 @@
     <arg name="front_down"   value="$(arg front_down)"/>
     <arg name="machine"      value="$(arg core)"/>
   </include>
+
+  <!-- One thinned obstacle cloud (/obstacles) from the left, right and
+       front cameras, for RTAB-Map's scan matching and move_base marking. -->
+  <node machine="$(arg core)" pkg="fetch_safety" type="cloud_merger_node" name="cloud_merger" output="screen">
+    <rosparam param="clouds">[/cam_left/obstacles, /cam_right/obstacles, /cam_front/obstacles]</rosparam>
+  </node>
 
   <!-- One obstacle scan (/scan) from the zone_checkers' per-camera scans, for
        mapping and move_base. Not required: safety doesn't depend on it. -->
