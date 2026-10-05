@@ -40,7 +40,12 @@ for b in $BOARDS; do
   fi
   echo "  at $(ssh $host 'cd ~/projects/fetch && git log --oneline -1')"
   echo "  building (log: ~/projects/fetch/build.log on .$b)"
-  if ssh $host 'cd ~/projects/fetch && source /opt/ros/melodic/setup.bash && nice catkin_make -j2 >build.log 2>&1'; then
+  # Build on the board's own underlay: .24 keeps realsense-ros in
+  # ~/realsense_ws, and a build that only sourced /opt/ros dropped it from
+  # the workspace chain (cameras then failed to load, 2026-10-06).
+  if ssh $host 'cd ~/projects/fetch && source /opt/ros/melodic/setup.bash &&
+                { [ ! -f ~/realsense_ws/devel/setup.bash ] || source ~/realsense_ws/devel/setup.bash; } &&
+                nice catkin_make -j2 --force-cmake >build.log 2>&1'; then
     echo "  build OK"
   else
     echo "  BUILD FAILED, last lines:"; ssh $host 'tail -15 ~/projects/fetch/build.log'; exit 1
