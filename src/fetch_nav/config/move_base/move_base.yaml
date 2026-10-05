@@ -57,7 +57,7 @@ TebLocalPlannerROS:
   free_goal_vel: false
 
   min_obstacle_dist: 0.15
-  inflation_dist: 0.45
+  inflation_dist: 0.35
   include_costmap_obstacles: true
   costmap_obstacles_behind_robot_dist: 1.0
 

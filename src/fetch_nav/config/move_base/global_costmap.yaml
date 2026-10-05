@@ -12,9 +12,12 @@ global_costmap:
   rolling_window: true
   width: 30.0
   height: 30.0
+  # Only RTAB-Map's grid (kept current by continuous mapping) + inflation.
+  # An obstacle layer here piled up /obstacles marks that /scan rarely
+  # cleared and blocked most of the free map on the first real run; live
+  # obstacles are the local costmap's job.
   plugins:
     - {name: static, type: "costmap_2d::StaticLayer"}
-    - {name: obstacles, type: "costmap_2d::ObstacleLayer"}
     - {name: inflation, type: "costmap_2d::InflationLayer"}
   static:
     # RTAB-Map's live grid: it keeps growing while mapping, the costmap

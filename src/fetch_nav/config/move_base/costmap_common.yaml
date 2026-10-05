@@ -16,5 +16,5 @@ obstacles:
   track_unknown_space: true
 
 inflation:
-  inflation_radius: 0.45     # m beyond the footprint where cost falls off
+  inflation_radius: 0.35     # m; 0.45 closed the gaps between clutter in the lab
   cost_scaling_factor: 4.0
