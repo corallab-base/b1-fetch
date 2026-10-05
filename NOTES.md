@@ -143,6 +143,12 @@ Why: any packet carries a mode, a lying B1 stands up from a few ms of mode 1, an
   (scan_cloud) instead of /scan. Synthetic test: odometry 10% short, RTAB-Map corrected to the
   true 1.20 m with 0 rejected matches. Not yet on the robot. /scan stays (move_base clearing,
   +inf = clear); plan for move_base: /obstacles marks, /scan clears.
+- Second drive 2026-10-06 (`lab2`, camera:=true + /obstacles; bags/mapping_lab2.bag 9.0 GB on .23
+  incl. infrared + depth; maps/lab2.db): 686 nodes, 44 camera + 199 proximity loop closures
+  (first drive: 0). Lab is a clean rectangle with the table island, plus a ~10 m space to the
+  right. Exported maps/lab2.pgm/.yaml (21.8 x 15.6 m, 5 cm) for map_server (committed).
+  RTAB-Map took ~0.5 s per update by the end (1 s budget): cap it (Rtabmap/TimeThr) for long
+  continuous mapping. Images make bags ~2.3 MB/s: record them only when needed.
 
 ## Rear coverage (2026-10-04, robot standing, measured on .25)
 The rear camera (88.7 deg down) sees the floor only from x -0.71 to -0.21, mostly under the
