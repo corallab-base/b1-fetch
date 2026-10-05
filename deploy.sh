@@ -43,13 +43,14 @@ for b in $BOARDS; do
   # realsense-ros is in the repo and built on /opt/ros. Except where OpenCV
   # 3.2's core library isn't at its system path (.24: moved to
   # ~/opencv3_backup_safe, so ROS's cv_bridge can't be linked against): there
-  # the repo's realsense2_camera is skipped and ~/realsense_ws (built before
-  # the move) is chained in instead.
+  # the repo's realsense2_camera gets a CATKIN_IGNORE (skipped by the build
+  # and by rospack) and ~/realsense_ws (built before the move) is chained in.
   if ssh $host 'cd ~/projects/fetch && source /opt/ros/melodic/setup.bash &&
-                if [ -e /usr/lib/aarch64-linux-gnu/libopencv_core.so.3.2.0 ]; then skip=""
-                else skip=realsense2_camera; source ~/realsense_ws/devel/setup.bash
+                ign=src/realsense-ros/realsense2_camera/CATKIN_IGNORE;
+                if [ -e /usr/lib/aarch64-linux-gnu/libopencv_core.so.3.2.0 ]; then rm -f $ign
+                else touch $ign; source ~/realsense_ws/devel/setup.bash
                      echo "no system OpenCV 3.2: using ~/realsense_ws for realsense2_camera"; fi &&
-                nice catkin_make -j2 --force-cmake -DCATKIN_BLACKLIST_PACKAGES="$skip" >build.log 2>&1'; then
+                nice catkin_make -j2 --force-cmake -DCATKIN_BLACKLIST_PACKAGES="" >build.log 2>&1'; then
     echo "  build OK"
   else
     echo "  BUILD FAILED, last lines:"; ssh $host 'tail -15 ~/projects/fetch/build.log'; exit 1

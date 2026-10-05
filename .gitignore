@@ -11,3 +11,5 @@ build.log
 # map databases (large; keep exported .pgm/.yaml if needed)
 /maps/*.db
 /backup/realsense-ros.pre-git/
+# set by deploy.sh on boards that use ~/realsense_ws instead
+/src/realsense-ros/realsense2_camera/CATKIN_IGNORE
