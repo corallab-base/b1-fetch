@@ -13,10 +13,10 @@ planner_patience: 5.0
 oscillation_timeout: 40.0
 oscillation_distance: 0.2
 shutdown_costmaps: false
-# no aggressive reset; rotate in place to look around, then clear and retry
+# Only clear the costmaps and retry. No rotate-in-place recovery: the 1.2 m
+# body sweeps its rear legs through space no camera sees.
 recovery_behaviors:
   - {name: conservative_reset, type: clear_costmap_recovery/ClearCostmapRecovery}
-  - {name: rotate_recovery, type: rotate_recovery/RotateRecovery}
 conservative_reset: {reset_distance: 2.0, layer_names: [obstacles]}
 
 GlobalPlanner:
@@ -42,10 +42,10 @@ TebLocalPlannerROS:
   max_vel_x_backwards: 0.02       # must be > 0; the filter blocks nav backward anyway
   penalty_epsilon: 0.01           # margin on the limits; must stay below max_vel_x_backwards
   max_vel_y: 0.15
-  max_vel_theta: 0.45
+  max_vel_theta: 0.35             # gentle turns: the rear legs sweep unseen space
   acc_lim_x: 0.5
   acc_lim_y: 0.5
-  acc_lim_theta: 1.0
+  acc_lim_theta: 0.4              # 1.0 let the heading swing quickly (weaving)
   min_turning_radius: 0.0         # legged: turns in place
 
   footprint_model:
@@ -59,7 +59,7 @@ TebLocalPlannerROS:
   min_obstacle_dist: 0.15
   inflation_dist: 0.35
   include_costmap_obstacles: true
-  costmap_obstacles_behind_robot_dist: 1.0
+  costmap_obstacles_behind_robot_dist: 1.5   # rear legs are 0.6 m back; their sweep reaches ~0.7 m
 
   dt_ref: 0.3
   dt_hysteresis: 0.1
@@ -68,6 +68,6 @@ TebLocalPlannerROS:
   enable_homotopy_class_planning: false   # CPU; one trajectory is enough here
 
   weight_kinematics_forward_drive: 1000.0  # strongly prefer forward over backward
-  weight_kinematics_nh: 1.0               # holonomic: sideways is fine
+  weight_kinematics_nh: 50.0              # mostly drive forward along the path (1.0: heading weaved +-80 deg)
   weight_optimaltime: 1.0
   weight_obstacle: 50.0

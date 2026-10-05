@@ -167,8 +167,17 @@ Why: any packet carries a mode, a lying B1 stands up from a few ms of mode 1, an
   oscillation_timeout 40 s (turning around took > 15 s). RTAB-Map node every 20 cm / ~6 deg.
 - Offline sim `src/fetch_nav/test/run_sim_nav.sh` (fake robot + cameras in a 9x6 m room with a
   table island, odometry 3% short, real checkers/filter/RTAB-Map/move_base): both goals reached
-  (40 s / 47 s, 0.16 m from target), >= 0.26 m from obstacles, no backward command. Not yet on
-  the robot.
+  (40 s / 47 s, 0.16 m from target), >= 0.26 m from obstacles, no backward command.
+- First real run 2026-10-06: Foxglove's goals didn't arrive (it advertised hostname `nx`, which
+  every board resolves to itself: set Foxglove's ROS hostname to the Mac's IP, 192.168.123.165).
+  Then no plan: the robot stood inside inflated cost next to clutter, and the global obstacle
+  layer had piled up marks over the free map. Then a turn in place swung the left rear leg near
+  an obstacle no camera saw; user stopped the bridge. Fixes: global costmap = RTAB-Map grid +
+  inflation only (0.35 m); local costmap also has the RTAB-Map grid (remembers obstacles out of
+  view, e.g. behind the rear legs); no rotate recovery; TEB obstacles up to 1.5 m behind; gentler
+  turning (max 0.35 rad/s, acc 0.4) and weight_kinematics_nh 50 (heading had weaved +-80 deg).
+  Sim after: both goals, 0.08/0.18 m, turning below the path's own bends, >= 0.22 m clearance.
+  Terminal goals: `rosrun fetch_nav goal.py <ahead> [left] [turn deg]`, `goal.py --cancel`.
 
 ## Rear coverage (2026-10-04, robot standing, measured on .25)
 The rear camera (88.7 deg down) sees the floor only from x -0.71 to -0.21, mostly under the
