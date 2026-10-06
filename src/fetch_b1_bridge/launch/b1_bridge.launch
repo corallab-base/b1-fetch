@@ -7,8 +7,12 @@
   <arg name="idle_mode" default="0"/>
   <!-- false when an EKF publishes odom -> base_link -->
   <arg name="publish_tf" default="true"/>
+  <!-- set by robot.launch: board to run on ("" = here), and whether the
+       bridge exiting stops the whole launch (not with the cameras in it) -->
+  <arg name="machine" default=""/>
+  <arg name="required" default="true"/>
 
-  <node pkg="fetch_b1_bridge" type="b1_bridge_node" name="b1_bridge" output="screen" required="true">
+  <node machine="$(arg machine)" pkg="fetch_b1_bridge" type="b1_bridge_node" name="b1_bridge" output="screen" required="$(arg required)">
     <param name="target_ip"   value="192.168.123.220"/>
     <param name="target_port" value="8082"/>
     <param name="local_port"  value="8090"/>

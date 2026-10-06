@@ -1,0 +1,28 @@
+<launch>
+  <!-- bringup.launch + the B1 bridge in one roslaunch, normally started by
+       ~/projects/fetch/robot.sh (checks first). One Ctrl+C stops both, so a
+       bridge can't outlive the master it was started with.
+       Defaults suit navigation: front infrared on (RTAB-Map), bridge
+       idle_mode 1. Navigation runs separately: roslaunch fetch_nav nav.launch
+       The bridge starts DISARMED. With the robot standing:
+         rosservice call /b1_bridge/arm      rosservice call /b1_bridge/disarm
+       The bridge is not required here: when it exits (remote used, robot
+       lying, no state) the cameras and filter keep running. Restart it on
+       its own: roslaunch fetch_b1_bridge b1_bridge.launch idle_mode:=1 -->
+  <arg name="front_down" default="false"/>
+  <arg name="front_infra" default="true"/>
+  <arg name="core" default="nx23"/>
+  <arg name="idle_mode" default="1"/>
+
+  <include file="$(find fetch_safety)/launch/bringup.launch">
+    <arg name="front_down" value="$(arg front_down)"/>
+    <arg name="front_infra" value="$(arg front_infra)"/>
+    <arg name="core" value="$(arg core)"/>
+  </include>
+
+  <include file="$(find fetch_b1_bridge)/launch/b1_bridge.launch">
+    <arg name="idle_mode" value="$(arg idle_mode)"/>
+    <arg name="machine" value="$(arg core)"/>
+    <arg name="required" value="false"/>
+  </include>
+</launch>

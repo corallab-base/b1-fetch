@@ -7,20 +7,26 @@ user's Mac; deliberately not permanent), wait ~1 min until the date is right on 
 `timedatectl` says synchronized: yes, then start ROS (a clock jump mid-run breaks TF).
 ```bash
 source ~/projects/fetch/env.sh                       # every terminal (master: .23)
-roslaunch fetch_safety bringup.launch                # cameras on their boards, filter + /scan on .23
+~/projects/fetch/robot.sh      # checks (clocks, no leftover ROS/bridge/UDP 8082 on any board), then
+                               # roslaunch fetch_safety robot.launch: bringup (front_infra on) + bridge
 # stand the robot (remote L2+A, or b1_stand_up)
-roslaunch fetch_b1_bridge b1_bridge.launch idle_mode:=1   # starts DISARMED, sends nothing
 rosservice call /b1_bridge/arm                       # ONLY after checking the robot stands
 rosrun fetch_nav teleop_keys.py                      # or: rostopic pub -r 10 /cmd_vel_raw ...
+roslaunch fetch_nav nav.launch                       # navigation, own terminal (restart freely)
 ```
-Shutdown: release keys -> `rosservice call /b1_bridge/disarm` -> Ctrl+C bridge ->
-L2+A or `b1_stand_down` -> Ctrl+C bringup -> power off.
+Shutdown: release keys -> `rosservice call /b1_bridge/disarm` -> L2+A or `b1_stand_down` ->
+Ctrl+C robot.sh -> power off. The bridge is not required in robot.launch: when it exits
+(remote used, robot lying, no state) cameras + filter stay up; restart it alone with
+`roslaunch fetch_b1_bridge b1_bridge.launch idle_mode:=1`. A camera/filter failure still stops
+everything, bridge included (silence stops a walking B1). `robot.sh --check` = checks only.
+Separate commands still work: `roslaunch fetch_safety bringup.launch front_infra:=true` + bridge.
 
 ## Code on the boards (since 2026-10-04)
 - One git repo, same code everywhere: GitHub origin (https://github.com/MahitMehta/fetch-unitree,
-  pushed/pulled from .24 only; .24 has no stored GitHub login, the user pushes) -> .24 ->
-  `./deploy.sh` pushes HEAD to ~/projects/fetch on the other boards over SSH (.23/.25 have no
-  internet) and runs catkin_make there. Commit before deploying. Never edit on .23/.25 directly
+  pushed/pulled from the development board only, the user pushes) -> development board ->
+  `./deploy.sh` pushes HEAD to ~/projects/fetch on the other boards over SSH and runs
+  catkin_make there. Commit before deploying. Development board: .23 since 2026-10-07 (was .24).
+  Never edit on the other boards directly
   (the push refuses if their checkout has local changes).
 - build/, devel/, logs, bags are not in git; each board builds its own workspace.
 - `env.sh` works on any board (ROS_IP auto-detected, master .23 unless FETCH_MASTER_URI is set);
@@ -45,8 +51,8 @@ L2+A or `b1_stand_down` -> Ctrl+C bringup -> power off.
 ## Layout
 | Board | Cameras (serial) | Role |
 |---|---|---|
-| .23 (head) | front 150622072829 (level), front_down 150622071014 (steep down) | ROS master, filter, scan merger, mounts, bridge, mapping (since 2026-10-04) |
-| .24 (body) | left 152122075367, right 150622073088 | side cameras; development (git hub, Claude); NTP server (Wi-Fi 192.168.11.110). Runs 85 C even idle -> hardware/airflow issue |
+| .23 (head) | front 150622072829 (level), front_down 150622071014 (steep down) | ROS master, filter, scan merger, mounts, bridge, mapping (since 2026-10-04); development (git hub, Claude) since 2026-10-07 |
+| .24 (body) | left 152122075367, right 150622073088 | side cameras; development until 2026-10-06; NTP server (Wi-Fi 192.168.11.110). Runs 85 C even idle -> hardware/airflow issue |
 | .25 (tail) | rear 150622073015 (straight down, USB 2.1 -> 480x270) | rear camera (can't see behind, see Rear coverage); MODE_15W_2CORE unlike the others |
 | .220 | B1 high-level controller (separate machine) | bridge target :8082 |
 | .10 | motor MCU | |
