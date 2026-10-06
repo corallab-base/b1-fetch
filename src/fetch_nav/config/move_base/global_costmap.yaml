@@ -20,8 +20,10 @@ global_costmap:
     - {name: static, type: "costmap_2d::StaticLayer"}
     - {name: inflation, type: "costmap_2d::InflationLayer"}
   static:
-    # RTAB-Map's live grid: it keeps growing while mapping, the costmap
-    # resizes with it. Unknown space stays unknown (planning may cross it).
-    map_topic: /rtabmap/grid_map
-    subscribe_to_updates: true
+    # RTAB-Map's live grid without specks (map_relay.py: lone 1-4 cell
+    # clusters in open floor became ~0.7 m blocking discs once inflated):
+    # it keeps growing while mapping, the costmap resizes with it. Unknown
+    # space stays unknown (planning may cross it).
+    map_topic: /map_relay/global
+    subscribe_to_updates: false      # map_relay sends whole maps
     track_unknown_space: true

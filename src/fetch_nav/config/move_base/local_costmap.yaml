@@ -11,11 +11,14 @@ local_costmap:
   # RTAB-Map's grid too, so obstacles out of every camera's view (behind the
   # rear legs: no camera covers the rear corners) still count. Without it a
   # turn in place swept a rear leg towards an unseen obstacle (2026-10-06).
+  # Only that part of it (map_relay.py ~rear): with the whole grid, map cells
+  # a few cm off touched the body and TEB found no feasible trajectory
+  # (2026-10-07); in view of a camera the live obstacles are enough.
   plugins:
     - {name: static, type: "costmap_2d::StaticLayer"}
     - {name: obstacles, type: "costmap_2d::ObstacleLayer"}
     - {name: inflation, type: "costmap_2d::InflationLayer"}
   static:
-    map_topic: /rtabmap/grid_map
-    subscribe_to_updates: true
+    map_topic: /map_relay/rear
+    subscribe_to_updates: false      # map_relay sends whole maps
     track_unknown_space: false

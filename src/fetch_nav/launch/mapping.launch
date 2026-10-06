@@ -30,7 +30,10 @@
   </node>
 
   <group ns="rtabmap">
-    <node pkg="rtabmap_ros" type="rtabmap" name="rtabmap" output="screen"
+    <!-- nice: RTAB-Map's heavy updates (>= 0.3 s, ~half the time on the
+         2026-10-07 run) held 81% of move_base's slow costmap loops; the
+         controller, filter and bridge on this board go first. -->
+    <node pkg="rtabmap_ros" type="rtabmap" name="rtabmap" output="screen" launch-prefix="nice -n 10"
           args="$(eval '--delete_db_on_start' if (arg('fresh') and not arg('localization')) else '')">
       <param name="database_path" value="$(arg database)"/>
       <param name="frame_id" value="base_link"/>

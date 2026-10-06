@@ -184,6 +184,24 @@ Why: any packet carries a mode, a lying B1 stands up from a few ms of mode 1, an
   turning (max 0.35 rad/s, acc 0.4) and weight_kinematics_nh 50 (heading had weaved +-80 deg).
   Sim after: both goals, 0.08/0.18 m, turning below the path's own bends, >= 0.22 m clearance.
   Terminal goals: `rosrun fetch_nav goal.py <ahead> [left] [turn deg]`, `goal.py --cancel`.
+- Runs 2026-10-07 (logs analysed offline): jerky stop-go and corrections, then an abort.
+  - TEB treated every local-costmap cell as an obstacle (2700-3900 with the RTAB-Map grid):
+    control loop overran 1468x; nav commands went stale 82x (filter "commands from nav").
+    Fixed: costmap_converter polygons (offline 39 -> 8 overruns), feasibility_check_no_poses 2,
+    RTAB-Map under `nice -n 10` (81% of slow costmap loops fell in its >= 0.3 s updates).
+    Next run: 0 control/costmap overruns.
+  - "Failed to get a plan" (770x): Melodic GlobalPlanner ignores default_tolerance, so goals
+    within ~0.28 m of a mapped obstacle never plan (reproduced offline). navfn honours the
+    tolerance but its paths bend ~2x and TEB spun in the sim: kept GlobalPlanner. Open: snap
+    goals to the nearest free cell; meanwhile keep goals >= 0.5 m from mapped furniture.
+  - Abort "no valid control": map cells a few cm off touched the robot's right side (camera saw
+    nothing there), so every TEB trajectory started in collision; recovery only clears > 2 m
+    away. Fixed: map_relay.py gives the local costmap the map only behind/beside-rear (5/10 cm
+    margins) and the global costmap the map without lone 1-4 cell specks in open floor (47 in
+    today's map, each a ~0.7 m disc once inflated). Offline at a side-touching pose: old config
+    held ~0 m/s, new drove 0.17 m/s. RTAB-Map adds map data only every 20 cm / ~6 deg of motion.
+  - lab2.db has 6 sessions and 40% more obstacle cells than the 10-06 export: re-map
+    (`nav.launch map:=lab3 fresh:=true`; without map:= fresh deletes lab2.db).
 
 ## Rear coverage (2026-10-04, robot standing, measured on .25)
 The rear camera (88.7 deg down) sees the floor only from x -0.71 to -0.21, mostly under the
