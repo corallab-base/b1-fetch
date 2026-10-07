@@ -34,15 +34,21 @@ Icp/MaxTranslation: "0.5"
 Icp/OutlierRatio: "0.7"
 Icp/CorrespondenceRatio: "0.2"
 
-# Occupancy grid from the cloud: every point is an obstacle (the cloud is
-# already the obstacle band, so no ground segmentation); rays from the robot
-# to the points mark free space.
+# Occupancy grid from the cloud (already the 10-90 cm obstacle band): split
+# by height only (no normals), points above Grid/MaxGroundHeight are
+# obstacles; rays from the robot to the points mark free space.
 Grid/Sensor: "0"
 Grid/3D: "false"
 Grid/NormalsSegmentation: "false"
-Grid/MaxGroundHeight: "-0.5"         # base_link is ~0.55 m up; the cloud starts at -0.45
+# Points below this count as floor, not obstacles. base_link is 0.567 m up
+# when walking (0.564-0.570, 2026-10-06 bag), so -0.42 is ~15 cm above the
+# floor. The cloud itself starts at 10 cm (the safety filter's min_z, which
+# stays): cables on the floor made thin streaks in the map, most likely
+# false depth points along their edges, and any mapped cell blocks planning
+# (no height in the 2D map). 10-15 cm points were ~3% of the cloud.
+Grid/MaxGroundHeight: "-0.42"
 Grid/CellSize: "0.05"
-Grid/RangeMax: "2.5"                 # D430 depth gets noisy beyond ~2.5 m (smeared walls)
+Grid/RangeMax: "2.0"                 # D430 depth error grows with range (smeared walls at 2.5 m, cable streaks)
 Grid/RayTracing: "true"
 # Drop points with fewer than 3 others within 10 cm before they become
 # obstacle cells: lone depth-noise points make specks, also against walls
