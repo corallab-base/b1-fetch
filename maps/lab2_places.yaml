@@ -1,0 +1,13 @@
+# Named places for move_base (place.py): x, y [m] and heading [deg] in the map frame.
+desk:
+  heading: 92.7
+  x: 0.21
+  y: 1.075
+home:
+  heading: -81.7
+  x: -0.29
+  y: -0.72
+sink:
+  heading: -172.6
+  x: -7.826
+  y: -2.988

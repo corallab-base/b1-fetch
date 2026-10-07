@@ -4,5 +4,6 @@ find_package(catkin REQUIRED)
 catkin_package()
 catkin_install_python(PROGRAMS scripts/teleop_keys.py scripts/ir_filter.py scripts/goal.py
   scripts/map_relay.py
+  scripts/place.py
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION})
 install(DIRECTORY launch config scripts DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION})

@@ -194,6 +194,11 @@ Why: any packet carries a mode, a lying B1 stands up from a few ms of mode 1, an
   turning (max 0.35 rad/s, acc 0.4) and weight_kinematics_nh 50 (heading had weaved +-80 deg).
   Sim after: both goals, 0.08/0.18 m, turning below the path's own bends, >= 0.22 m clearance.
   Terminal goals: `rosrun fetch_nav goal.py <ahead> [left] [turn deg]`, `goal.py --cancel`.
+  Named places (2026-10-08): `place.py save NAME` (robot's pose; `--click` = Foxglove publish-pose
+  on /place_click), `place.py go NAME` (Ctrl+C cancels), `list`, `delete`. Stored per map in
+  maps/<map>_places.yaml (lab2: desk, home, sink). Goals in cells the robot doesn't fit (costmap)
+  move to the nearest fitting cell within 0.5 m, so saved places avoid the GlobalPlanner
+  no-tolerance failure.
 - Runs 2026-10-07 (logs analysed offline): jerky stop-go and corrections, then an abort.
   - TEB treated every local-costmap cell as an obstacle (2700-3900 with the RTAB-Map grid):
     control loop overran 1468x; nav commands went stale 82x (filter "commands from nav").
