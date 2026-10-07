@@ -96,11 +96,16 @@ sources:
 # close to the body (and nothing nearer than ~0.2-0.3 m), so the fore/aft ends
 # of the side zones are only covered further out.
 zones:
+  # 0.15 m ahead of the nose (was 0.40): the 0.40 zone stopped the robot at
+  # table tops overhanging their legs (2026-10-08), too far to reach a table.
+  # Tight for nav, which ignores front_slow: at 0.25 m/s the B1 needs up to
+  # ~0.5 s to stop plus ~0.1 s camera delay, ~15 cm (typically 3-6 cm).
+  # Manual commands are slowed to 30% inside front_slow first (~5 cm).
   - name: front_stop
     direction: forward
     action: stop
     min_points: 30
-    polygon: [[0.60, -0.35], [1.00, -0.35], [1.00, 0.35], [0.60, 0.35]]
+    polygon: [[0.60, -0.35], [0.75, -0.35], [0.75, 0.35], [0.60, 0.35]]
   - name: front_slow
     direction: forward
     action: slowdown

@@ -170,12 +170,12 @@ def main():
     h.set_scene(['left', 'right', 'front'])
     h.check('rear camera missing: backward blocked only', h.command(-0.4, 0.3), (0.0, 0.3, 0.0))
 
-    h.set_scene(everyone, {'front': blob(0.8, 0.0)})
+    h.set_scene(everyone, {'front': blob(0.7, 0.0)})
     h.check('obstacle in front_stop: vx zeroed, vy kept', h.command(0.5, -0.3), (0.0, -0.3, 0.0))
     h.check('obstacle in front_stop: reversing allowed', h.command(-0.5, 0.0), (-0.5, 0.0, 0.0))
-    h.check_scan('/scan: front obstacle at ~0.8 m straight ahead', 1, 0.79, 0.86)
+    h.check_scan('/scan: front obstacle at ~0.7 m straight ahead', 1, 0.69, 0.76)
     # 60 points over 6x6 cm -> a few 5 cm voxels
-    h.check_obstacles('/obstacles: front blob thinned to a few voxels', (0.82, 0.02), 8)
+    h.check_obstacles('/obstacles: front blob thinned to a few voxels', (0.72, 0.02), 8)
     h.check_scan('/scan: nothing seen behind -> unknown (NaN)', 180, 'nan')
 
     h.set_scene(everyone, {'rear': blob(-0.8, 0.0)})
@@ -189,14 +189,17 @@ def main():
     h.check('nav ignores slowdown zones: vx kept', h.command(nav=(0.5, 0.0, 0.0)), (0.5, 0.0, 0.0))
     rospy.sleep(0.8)
 
-    h.set_scene(everyone, {'front': blob(0.8, 0.0)})
+    h.set_scene(everyone, {'front': blob(0.7, 0.0)})
     h.check('nav still stops in a stop zone', h.command(nav=(0.5, 0.2, 0.0)), (0.0, 0.2, 0.0))
     rospy.sleep(0.8)
 
-    h.set_scene(everyone, {'front': blob(0.8, 0.0, n=10)})
+    h.set_scene(everyone, {'front': blob(0.85, 0.0)})   # 0.25 m ahead of the nose: was front_stop until 2026-10-08
+    h.check('0.25 m ahead of the nose: slowed, not stopped', h.command(0.5, 0.0), (0.15, 0.0, 0.0))
+
+    h.set_scene(everyone, {'front': blob(0.7, 0.0, n=10)})
     h.check('below min_points: ignored as noise', h.command(0.5, 0.0), (0.5, 0.0, 0.0))
 
-    h.set_scene(everyone, {'front': blob(0.8, 0.0, z=-0.55)})
+    h.set_scene(everyone, {'front': blob(0.7, 0.0, z=-0.55)})
     h.check('ground points below min_z: ignored', h.command(0.5, 0.0), (0.5, 0.0, 0.0))
     h.check_scan('/scan: floor only ahead -> clear (+inf)', 1, 'inf')
     rospy.sleep(0.6)
