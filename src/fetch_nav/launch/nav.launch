@@ -27,9 +27,14 @@
     <arg name="use_sim_time" value="$(arg use_sim_time)"/>
   </include>
 
+  <!-- which map runs: place.py reads maps/<map>_places.yaml -->
+  <param name="/fetch_nav/map" value="$(arg map)"/>
+
   <!-- RTAB-Map's grid for the costmaps: without specks (global) and only
        behind the robot (local), see map_relay.py -->
-  <node pkg="fetch_nav" type="map_relay.py" name="map_relay" output="screen"/>
+  <!-- required: without fresh rear maps move_base would plan with a stale
+       one masked for an old robot pose -->
+  <node pkg="fetch_nav" type="map_relay.py" name="map_relay" output="screen" required="true"/>
 
   <node pkg="move_base" type="move_base" name="move_base" output="screen">
     <remap from="cmd_vel" to="/cmd_vel_nav"/>

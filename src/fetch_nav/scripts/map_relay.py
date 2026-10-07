@@ -75,7 +75,12 @@ def main():
     pub_rear = rospy.Publisher('~rear', OccupancyGrid, queue_size=1, latch=True)
     buf = tf2_ros.Buffer()
     tf2_ros.TransformListener(buf)
-    state = {}
+    # Latest map as one tuple (msg, clean grid, cell x row, cell y column),
+    # replaced in a single assignment: the timer must never mix a new map's
+    # size with an old one's arrays. (It did: RTAB-Map's map changed size,
+    # the timer thread died on the shape mismatch and move_base kept a stale
+    # rear map, masked for an old robot pose, 2026-10-08.)
+    latest = [None]
 
     def on_map(msg):
         info = msg.info
@@ -87,19 +92,26 @@ def main():
         q = info.origin.orientation   # RTAB-Map's grid is axis-aligned; cell centres in the map frame
         if abs(q.z) > 1e-3 or abs(q.x) > 1e-3 or abs(q.y) > 1e-3:
             rospy.logwarn_throttle(30.0, 'map_relay: rotated map origin not supported, rear map off')
-            state.clear()
+            latest[0] = None
             return
         r = info.resolution
         xs = info.origin.position.x + (np.arange(info.width, dtype=np.float32) + 0.5) * r
         ys = info.origin.position.y + (np.arange(info.height, dtype=np.float32) + 0.5) * r
-        state.update(msg=msg, clean=clean, X=xs[np.newaxis, :], Y=ys[:, np.newaxis])
+        latest[0] = (msg, clean, xs[np.newaxis, :], ys[:, np.newaxis])
         rospy.loginfo_throttle(60.0, 'map_relay: %dx%d map, removed %d specks (%d cells)',
                                info.width, info.height, removed, cells)
 
     def on_timer(_):
-        if not state:
+        try:   # an exception would end rospy's timer thread for good, silently
+            publish_rear()
+        except Exception as e:
+            rospy.logerr_throttle(5.0, 'map_relay: rear map not published: %s', e)
+
+    def publish_rear():
+        snap = latest[0]
+        if snap is None:
             return
-        msg = state['msg']
+        msg, clean, X, Y = snap
         try:
             t = buf.lookup_transform(msg.header.frame_id, base_frame, rospy.Time(0),
                                      rospy.Duration(0.1)).transform
@@ -109,11 +121,11 @@ def main():
         q = t.rotation
         yaw = math.atan2(2 * (q.w * q.z + q.x * q.y), 1 - 2 * (q.y * q.y + q.z * q.z))
         # every cell in the robot frame; keep the map behind the body and beside its rear half
-        dx, dy = state['X'] - t.translation.x, state['Y'] - t.translation.y
+        dx, dy = X - t.translation.x, Y - t.translation.y
         c, s = math.cos(yaw), math.sin(yaw)
         bx, by = c * dx + s * dy, -s * dx + c * dy
         keep = (bx < -rear_start) | ((bx < -side_start) & (np.abs(by) > side_clear))
-        rear = np.where(keep, state['clean'], np.int8(FREE))
+        rear = np.where(keep, clean, np.int8(FREE))
         out = OccupancyGrid(info=msg.info)
         out.header.frame_id = msg.header.frame_id
         out.header.stamp = rospy.Time.now()
