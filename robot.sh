@@ -20,6 +20,9 @@
 #   - a board's clock isn't synchronized or is > 0.5 s off this one's
 #     (TF breaks on a clock jump mid-run);
 #   - a board can't be reached (then nothing on it can be checked).
+# Then it power-cycles every board's cameras (boot/usb_reset.sh), starts the
+# stack and stops it again unless the front, left and right cameras publish
+# within 60 s (mandatory; the rear camera only warns).
 # The bridge starts DISARMED. Stand the robot, check it stands, then
 #   rosservice call /b1_bridge/arm
 # Navigation in another terminal: roslaunch fetch_nav nav.launch
@@ -132,15 +135,65 @@ if [ -n "$fail" ]; then
 fi
 echo "All checks passed."
 [ -n "$CHECK_ONLY" ] && exit 0
-echo "Starting cameras + filter + bridge (DISARMED). Arm only after checking the robot stands."
 
+# Power-cycle every board's cameras before each start (no camera driver runs:
+# the checks above made sure). A RealSense can wedge when its driver stops
+# and starts again: on 2026-10-08 the right camera worked after boot, then
+# after a restart only logged "failed to set power state" until a USB reset.
+echo "Power-cycling the cameras on .${BOARDS// /, .} (~15 s)..."
+pids=
+for b in $BOARDS; do
+  if [ "$b" = "$ME" ]; then ~/projects/fetch/boot/usb_reset.sh &
+  else ssh -o BatchMode=yes unitree@192.168.123.$b ~/projects/fetch/boot/usb_reset.sh & fi
+  pids="$pids $b:$!"
+done
+for bp in $pids; do wait ${bp#*:} || echo "  warning: USB reset on .${bp%%:*} failed (see boot/usb_reset.log there)"; done
+
+# The front, left and right cameras are mandatory: without one of them nav
+# and the filter are blind (or blocked) on that side. A wedged camera can
+# still enumerate on USB, so wait for its data (zone_counts), not the device.
+MANDATORY="cam_front cam_left cam_right"
+OPTIONAL="cam_rear"
+CAMERA_WAIT=60   # s; a normal start takes ~30 s
+wait_cameras() {   # [pid to watch] -> 0 when all mandatory cameras publish
+  local missing="$MANDATORY $OPTIONAL" still c deadline=$((SECONDS + CAMERA_WAIT))
+  while [ -n "$missing" ] && [ $SECONDS -lt $deadline ]; do
+    [ -n "$1" ] && ! kill -0 $1 2>/dev/null && return 0   # the launch ended (Ctrl+C): nothing to report
+    still=
+    for c in $missing; do timeout 4 rostopic echo -n 1 /$c/zone_counts >/dev/null 2>&1 || still="$still $c"; done
+    missing=$(echo $still)
+    [ -n "$missing" ] && sleep 2
+  done
+  local bad_cams= c2
+  for c2 in $missing; do
+    case " $MANDATORY " in *" $c2 "*) bad_cams="$bad_cams $c2" ;;
+      *) echo "WARNING: $c2 not publishing after ${CAMERA_WAIT} s (not mandatory; its zones stay blocked)" ;; esac
+  done
+  if [ -n "$bad_cams" ]; then
+    echo; echo "NOT STARTED: mandatory camera(s)$bad_cams not publishing after ${CAMERA_WAIT} s."
+    echo "Stopping the stack. Check the camera's USB cable/connector, then run robot.sh again."
+    return 1
+  fi
+  echo "Cameras OK: $MANDATORY publishing${missing:+ (not: $missing)}."
+}
+
+echo "Starting cameras + filter + bridge (DISARMED). Arm only after checking the robot stands."
 if [ -z "$NO_TMUX" ] && [ -z "$TMUX" ] && command -v tmux >/dev/null; then
   # env.sh again inside: a tmux server that already runs keeps its own environment
   args=; [ $# -gt 0 ] && args=$(printf '%q ' "$@")
   tmux new-session -d -s $SESSION -n stack \
     "source ~/projects/fetch/env.sh && roslaunch fetch_safety robot.launch $args;
      echo; echo 'robot.launch ended. Enter closes this window.'; read"
+  echo "Waiting for the cameras (up to ${CAMERA_WAIT} s)..."
+  if ! wait_cameras; then
+    echo "--- last launch output:"; tmux capture-pane -p -t $SESSION | grep . | tail -12
+    stop_stack
+    exit 1
+  fi
   echo "In tmux session '$SESSION': Ctrl-b d detaches (the stack keeps running), tmux attach -t $SESSION returns."
   exec tmux attach -t $SESSION
 fi
+# In this terminal: roslaunch replaces this shell (Ctrl+C works as usual);
+# a watcher stops it (SIGINT to this PID) if a mandatory camera stays silent.
+( wait_cameras $$ || kill -INT $$ ) &
 exec roslaunch fetch_safety robot.launch "$@"

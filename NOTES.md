@@ -20,7 +20,12 @@ robot.sh runs the stack in tmux session `robot` (tmux installed on .23 2026-10-0
 connection no longer kills it (without tmux it died whenever sshd noticed, minutes to hours later).
 `tmux attach -t robot` gets it back; Ctrl-b d detaches, Ctrl-b c opens a window (source env.sh).
 `robot.sh --stop` stops safely from anywhere: cancels nav's goal, disarms an armed bridge, ends
-nav then the stack, then re-runs the checks. With a stack still up, robot.sh says how to reach it. The bridge is not required in robot.launch: when it exits
+nav then the stack, then re-runs the checks. With a stack still up, robot.sh says how to reach it.
+Every start power-cycles all boards' cameras first (boot/usb_reset.sh) and stops the stack again
+unless front, left and right publish zone_counts within 60 s (mandatory; rear only warns). Why:
+2026-10-08 the right camera worked after boot, then after a stack restart only logged "failed to
+set power state" (stale, right blocked) until a USB reset; the login-time reset hadn't even run
+on .24/.25 that boot, so a boot service wouldn't have helped. The bridge is not required in robot.launch: when it exits
 (remote used, robot lying, no state) cameras + filter stay up; restart it alone with
 `roslaunch fetch_b1_bridge b1_bridge.launch idle_mode:=1`. A camera/filter failure still stops
 everything, bridge included (silence stops a walking B1). `robot.sh --check` = checks only.
