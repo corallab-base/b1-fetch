@@ -44,3 +44,11 @@ Grid/MaxGroundHeight: "-0.5"         # base_link is ~0.55 m up; the cloud starts
 Grid/CellSize: "0.05"
 Grid/RangeMax: "2.5"                 # D430 depth gets noisy beyond ~2.5 m (smeared walls)
 Grid/RayTracing: "true"
+# Drop points with fewer than 3 others within 10 cm before they become
+# obstacle cells: lone depth-noise points make specks, also against walls
+# and furniture where map_relay.py doesn't remove them (it only clears lone
+# specks in open floor), thickening walls and narrowing gaps once inflated.
+# A chair leg in the 5 cm cloud has ~4 neighbours (2 above, 2 below) and
+# stays. Applies to new map nodes only. Not yet checked on a bag (2026-10-07).
+Grid/NoiseFilteringRadius: "0.1"
+Grid/NoiseFilteringMinNeighbors: "3"
