@@ -15,7 +15,12 @@ rosrun fetch_nav teleop_keys.py                      # or: rostopic pub -r 10 /c
 roslaunch fetch_nav nav.launch                       # navigation, own terminal (restart freely)
 ```
 Shutdown: release keys -> `rosservice call /b1_bridge/disarm` -> L2+A or `b1_stand_down` ->
-Ctrl+C robot.sh -> power off. The bridge is not required in robot.launch: when it exits
+Ctrl+C robot.sh (or `robot.sh --stop`) -> power off.
+robot.sh runs the stack in tmux session `robot` (tmux installed on .23 2026-10-08): a dropped SSH
+connection no longer kills it (without tmux it died whenever sshd noticed, minutes to hours later).
+`tmux attach -t robot` gets it back; Ctrl-b d detaches, Ctrl-b c opens a window (source env.sh).
+`robot.sh --stop` stops safely from anywhere: cancels nav's goal, disarms an armed bridge, ends
+nav then the stack, then re-runs the checks. With a stack still up, robot.sh says how to reach it. The bridge is not required in robot.launch: when it exits
 (remote used, robot lying, no state) cameras + filter stay up; restart it alone with
 `roslaunch fetch_b1_bridge b1_bridge.launch idle_mode:=1`. A camera/filter failure still stops
 everything, bridge included (silence stops a walking B1). `robot.sh --check` = checks only.
