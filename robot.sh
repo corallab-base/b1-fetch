@@ -94,8 +94,22 @@ fi
 
 # One probe per board: its clock, sync state, ROS/camera/bridge processes (by
 # process name, so a shell whose command line mentions them doesn't count) and
-# UDP 8082 users.
+# UDP 8082 users. The clock offset comes from an NTP query to this board (the
+# boards' time server, boot/setup_timesync.sh), made on the board itself: an
+# SSH round trip mismeasured it when a hot, loaded .24 was slow to log in
+# (1.05-1.59 s reported, NTP said 1 ms, 2026-10-08). The round trip stays as
+# a rough fallback when NTP doesn't answer.
 probe='date +%s.%N
+python3 - <<"PY"
+import socket, struct, time
+s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM); s.settimeout(2)
+try:
+    t0 = time.time(); s.sendto(b"\x1b" + 47 * b"\0", ("'"$ROS_IP"'", 123)); d = s.recv(48); t3 = time.time()
+    ts = lambda o: struct.unpack("!I", d[o:o + 4])[0] - 2208988800 + struct.unpack("!I", d[o + 4:o + 8])[0] / 2.0 ** 32
+    print("ntp %.3f" % -(((ts(32) - t0) + (ts(40) - t3)) / 2))   # this board minus the time server
+except Exception:
+    print("ntp none")
+PY
 timedatectl status | grep -q "synchronized: yes" && echo sync || echo nosync
 pgrep -a "^(roslaunch|rosmaster|rosout|nodelet|realsense.*|b1_bridge_node|move_base|rtabmap)$" | cut -c1-120 | sed "s/^/proc /"
 ss -uanp 2>/dev/null | grep ":8082 " | sed "s/^/udp /"
@@ -112,8 +126,12 @@ for b in $BOARDS; do
       { bad "can't reach .$b over SSH"; continue; }
   fi
   after=$(date +%s.%N)
-  # its clock vs ours at the middle of the round trip
-  skew=$(python3 -c "print('%.2f' % ($(echo "$out" | head -1) - ($before + $after) / 2))")
+  skew=$(echo "$out" | sed -n 's/^ntp \(-\{0,1\}[0-9.]*\)$/\1/p')
+  if [ -z "$skew" ]; then   # no NTP answer: its clock vs ours at the middle of the SSH round trip (rough)
+    skew=$(python3 -c "print('%.2f' % ($(echo "$out" | head -1) - ($before + $after) / 2))")
+    echo "  (time server didn't answer .$b: clock compared over SSH, rough)"
+  fi
+  skew=$(python3 -c "print('%.2f' % $skew)")
   python3 -c "import sys; sys.exit(abs($skew) > $MAX_SKEW)" || { bad ".$b clock is ${skew} s off this board's"; board_fail=1; }
   echo "$out" | grep -qx sync || { bad ".$b clock not synchronized (timedatectl)"; board_fail=1; }
   echo "$out" | grep '^proc ' | sed 's/^proc /  running: /' | grep . && { bad "ROS/camera/bridge processes on .$b"; board_fail=1; running=1; }
