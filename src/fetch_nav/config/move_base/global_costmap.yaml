@@ -27,3 +27,11 @@ global_costmap:
     map_topic: /map_relay/global
     subscribe_to_updates: false      # map_relay sends whole maps
     track_unknown_space: true
+  # Wider and gentler than the shared 0.35 m / 4.0: with that, cost ended
+  # 7 cm past the body's half-width (0.28 m), so the shortest path hugged
+  # clutter with open floor beside it (2026-10-08). Only cells within the
+  # inscribed radius (0.28 m) block, so this doesn't close any gap; it only
+  # makes paths prefer clearance (cost ~130 at 0.5 m, ~70 at 0.7 m, ~30 at 1 m).
+  inflation:
+    inflation_radius: 1.0
+    cost_scaling_factor: 3.0
