@@ -44,4 +44,8 @@
     <rosparam command="load" file="$(find fetch_nav)/config/move_base/global_costmap.yaml"/>
     <rosparam command="load" file="$(find fetch_nav)/config/move_base/local_costmap.yaml"/>
   </node>
+
+  <!-- near the goal and no longer improving: accept it rather than step in
+       place for minutes making small corrections, see goal_settler.py -->
+  <node pkg="fetch_nav" type="goal_settler.py" name="goal_settler" output="screen"/>
 </launch>

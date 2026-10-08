@@ -198,6 +198,17 @@ def main():
             print('cancelled')
             return
         state = client.get_state()
+        if state == GoalStatus.PREEMPTED:   # goal_settler.py accepts "close enough" by cancelling
+            try:
+                rx, ry, ryaw = robot_pose(1.0)
+                dxy = math.hypot(xy[0] - rx, xy[1] - ry)
+                dyaw = abs(math.degrees(math.atan2(math.sin(yaw - ryaw), math.cos(yaw - ryaw))))
+                if dxy <= rospy.get_param('/goal_settler/xy_tolerance', 0.4) and \
+                        dyaw <= rospy.get_param('/goal_settler/yaw_tolerance_deg', 25.0):
+                    print('arrived at %s (close enough: %.2f m / %.0f deg off)' % (a.name, dxy, dyaw))
+                    sys.exit(0)
+            except tf2_ros.TransformException:
+                pass
         print('arrived at %s' % a.name if state == GoalStatus.SUCCEEDED else
               'not reached: %s' % {GoalStatus.ABORTED: 'move_base gave up (no plan / no valid control)',
                                    GoalStatus.PREEMPTED: 'replaced or cancelled'}.get(state, 'state %d' % state))
